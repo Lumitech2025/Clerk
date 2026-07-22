@@ -8,7 +8,8 @@ const Login = () => {
   const navigate = useNavigate();
   const { login } = useContext(AuthContext);
   
-  const [credentials, setCredentials] = useState({ usernameOrEmail: '', password: '' });
+  // Aligned state key to 'username' to match input name and payload
+  const [credentials, setCredentials] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -29,7 +30,7 @@ const Login = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: credentials.usernameOrEmail,
+          username: credentials.username,
           password: credentials.password,
         }),
       });
@@ -43,13 +44,20 @@ const Login = () => {
         throw new Error(data.detail || 'Authentication failed. Please try again.');
       }
 
-      // Save user session in context & local storage
-      login(data.user || { username: credentials.usernameOrEmail, role: 'CLERK' }, {
+      // Safely map response payload matching CustomTokenObtainPairSerializer
+      const userProfile = data.user || {
+        username: credentials.username,
+        designation: data.designation || 'MEMBER',
+        email: data.email || ''
+      };
+
+      // Store in AuthContext & LocalStorage
+      login(userProfile, {
         access: data.access,
         refresh: data.refresh
       });
 
-      // Navigate safely inside Router context
+      // Navigate straight to dashboard dispatcher
       navigate('/dashboard', { replace: true });
 
     } catch (err) {
@@ -110,7 +118,7 @@ const Login = () => {
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '12px', fontWeight: '750', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.075em', marginBottom: '8px' }}>
-                USER ID / EMAIL
+                USER ID
               </label>
               <div style={{ position: 'relative' }}>
                 <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, paddingLeft: '16px', display: 'flex', alignItems: 'center', pointerEvents: 'none', color: '#059669' }}>
@@ -118,9 +126,9 @@ const Login = () => {
                 </div>
                 <input
                   type="text"
-                  name="usernameOrEmail"
+                  name="username"
                   required
-                  value={credentials.usernameOrEmail}
+                  value={credentials.username}
                   onChange={handleChange}
                   placeholder="Mwiti2026"
                   style={{
@@ -174,7 +182,7 @@ const Login = () => {
                 </>
               ) : (
                 <>
-                  <span>SIGN IN TO CCIS</span>
+                  <span>LOG IN</span>
                   <ArrowRight size={18} />
                 </>
               )}
