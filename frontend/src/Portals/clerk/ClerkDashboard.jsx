@@ -4,6 +4,8 @@ import ClerkSidebar from './ClerkSidebar';
 import Baptisms from './modules/Baptisms';
 import ChildDedications from './modules/ChildDedications';
 import MeetingsRecords from './modules/MeetingsRecords';
+import Departments from './modules/Departments';
+import Communication from './modules/Communication';
 
 // Icons
 import { 
@@ -310,20 +312,12 @@ const ClerkDashboard = () => {
 
           {/* 6. DEPARTMENTS & TORS MODULE */}
           {activeTab === 'departments' && (
-            <ModulePlaceholder 
-              title="Departments & Terms of Reference (TORs)"
-              description="Maintain departmental structures, leadership rosters, terms of reference guidelines, and active ministry roles."
-              icon={FaBuilding}
-            />
+            <Departments currentUserRole={currentUserRole} />
           )}
 
           {/* 7. COMMUNICATION HUB MODULE */}
           {activeTab === 'communication' && (
-            <ModulePlaceholder 
-              title="Communication Hub & Bulletins"
-              description="Coordinate official announcements, manage weekly bulletin postings, and issue notifications across all roles."
-              icon={FaBullhorn}
-            />
+            <Communication currentUserRole={currentUserRole} />
           )}
 
         </main>

@@ -2,118 +2,133 @@ import React from 'react';
 import { 
   LayoutGrid, 
   Users, 
+  ArrowLeftRight,
   Droplets, 
   Baby, 
   ClipboardList, 
   Building2, 
-  Megaphone, 
+  Megaphone,
+  FileBarChart,
   LogOut,
   Church
 } from 'lucide-react';
 
-const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, kpiStats, userRole = 'Church Clerk' }) => {
+const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Church Clerk' }) => {
   const menuItems = [
     { 
       id: 'analytics', 
-      label: 'Overview & Analytics', 
-      icon: <LayoutGrid size={20} />
+      label: 'Home', 
+      icon: <LayoutGrid size={22} />
     },
     { 
       id: 'membership', 
-      label: 'Membership Records', 
-      icon: <Users size={20} />, 
-      
+      label: 'Member Records', 
+      icon: <Users size={22} />
+    },
+    { 
+      id: 'transfers', 
+      label: 'Transfers',
+      icon: <ArrowLeftRight size={22} />,
     },
     { 
       id: 'baptisms', 
       label: 'Baptisms', 
-      icon: <Droplets size={20} />
+      icon: <Droplets size={22} />
     },
     { 
       id: 'dedications', 
       label: 'Child Dedications', 
-      icon: <Baby size={20} />
+      icon: <Baby size={22} />
     },
     { 
       id: 'meetings', 
       label: 'Meetings Records', 
-      icon: <ClipboardList size={20} />
+      icon: <ClipboardList size={22} />
     },
     { 
       id: 'departments', 
       label: 'Departments & TORs', 
-      icon: <Building2 size={20} />
+      icon: <Building2 size={22} />
     },
     { 
       id: 'communication', 
       label: 'Communication Hub', 
-      icon: <Megaphone size={20} />
+      icon: <Megaphone size={22} />
+    },
+    { 
+      id: 'conference-reports', 
+      label: 'Conference Reports', 
+      icon: <FileBarChart size={22} />
     }
   ];
 
   return (
-    <aside className="w-80 bg-[#020617] h-screen flex flex-col justify-between p-6 border-r border-slate-800 flex-shrink-0 shadow-2xl font-sans">
-      <div>
-        {/* Branding Header */}
-        <div className="flex items-center gap-3.5 mb-10 px-2 pt-2">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-            <Church size={26} />
-          </div>
-          <div>
-            <h1 className="text-xl font-black text-white tracking-wider uppercase leading-none">
-              NEWLIFE <span className="text-emerald-400">CCIS</span>
-            </h1>
-            <p className="text-xs text-slate-400 font-extrabold uppercase tracking-widest mt-1.5">
-              Clerk Portal
-            </p>
-          </div>
+    <aside className="w-80 bg-[#020617] h-screen flex flex-col justify-between p-6 border-r border-slate-800 flex-shrink-0 shadow-2xl font-sans select-none">
+      
+      {/* 1. Header Section */}
+      <div className="flex items-center gap-3.5 px-2 pt-1 pb-4 border-b border-slate-800/60">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+          <Church size={28} />
         </div>
-
-        {/* Navigation Tabs */}
-        <nav className="space-y-2.5">
-          {menuItems.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center justify-between px-5 py-3.5 rounded-2xl transition-all duration-200 cursor-pointer ${
-                  isActive 
-                    ? 'bg-emerald-500 text-slate-950 font-black shadow-lg shadow-emerald-500/25 scale-[1.02]' 
-                    : 'text-slate-300 hover:bg-slate-900 hover:text-white font-bold'
-                }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className={isActive ? 'text-slate-950' : 'text-slate-400'}>
-                    {item.icon}
-                  </div>
-                  <span className="text-sm font-extrabold tracking-wide uppercase truncate">
-                    {item.label}
-                  </span>
-                </div>
-                {item.badge && (
-                  <span className={`text-xs font-black px-2.5 py-0.5 rounded-full ${
-                    isActive ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-800 text-emerald-400 border border-emerald-500/20'
-                  }`}>
-                    {item.badge}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
+        <div className="overflow-hidden">
+          <h1 className="text-xl font-black text-white tracking-wider uppercase leading-none truncate">
+            NEWLIFE <span className="text-emerald-400">CCIS</span>
+          </h1>
+          <p className="text-xs text-slate-400 font-extrabold uppercase tracking-widest mt-1.5 truncate">
+            {userRole} Portal
+          </p>
+        </div>
       </div>
 
-      {/* Sign Out Button */}
-      <div className="pt-6 border-t border-slate-800/80">
+      {/* 2. Main Navigation Area  */}
+      <nav className="flex-1 flex flex-col justify-evenly my-6 py-2">
+        {menuItems.map((item) => {
+          const isActive = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`w-full flex items-center justify-between px-5 py-3.5 rounded-2xl transition-all duration-200 cursor-pointer ${
+                isActive 
+                  ? 'bg-emerald-500 text-slate-950 font-black shadow-lg shadow-emerald-500/25 scale-[1.02]' 
+                  : 'text-slate-300 hover:bg-slate-900/80 hover:text-white font-black'
+              }`}
+            >
+              <div className="flex items-center gap-4 min-w-0">
+                <div className={isActive ? 'text-slate-900' : 'text-emerald-400/80'}>
+                  {item.icon}
+                </div>
+                {/* Font boosted from text-sm to text-base with extra-bold rendering */}
+                <span className="text-base font-black tracking-wide uppercase truncate">
+                  {item.label}
+                </span>
+              </div>
+
+              {item.badge && (
+                <span className={`text-xs font-black px-2.5 py-0.5 rounded-full shrink-0 ml-2 ${
+                  isActive 
+                    ? 'bg-slate-950/20 text-slate-950' 
+                    : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                }`}>
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* 3. Footer / Logout Section */}
+      <div className="pt-2 border-t border-slate-800/80">
         <button 
           onClick={onLogout}
-          className="w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-2xl text-rose-400 bg-rose-500/10 hover:bg-rose-500 hover:text-white font-black text-xs uppercase tracking-wider transition-all duration-200 border border-rose-500/20 cursor-pointer"
+          className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-2xl text-rose-400 bg-rose-500/10 hover:bg-rose-500 hover:text-white font-black text-sm uppercase tracking-wider transition-all duration-200 border border-rose-500/20 cursor-pointer shadow-sm"
         >
-          <LogOut size={18} />
+          <LogOut size={20} />
           <span>Sign Out</span>
         </button>
       </div>
+
     </aside>
   );
 };
