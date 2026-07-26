@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import API from '../../../api/api';
 import { 
   FileText, 
   Upload, 
-  Share2, 
   Download, 
   Search, 
   Calendar, 
@@ -13,10 +13,20 @@ import {
   ChevronRight,
   Send,
   MessageSquare,
-  FileUp
+  FileUp,
+  Loader2,
+  Pencil
 } from 'lucide-react';
 
 const Communication = () => {
+  // Data & State Management
+  const [bulletins, setBulletins] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Active user name requirement (Isaac Nyangolo)
+  const activeUserName = "Isaac Nyangolo";
+
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState('2026');
@@ -27,135 +37,153 @@ const Communication = () => {
 
   // Modal States
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [selectedBulletin, setSelectedBulletin] = useState(null);
+  const [editingBulletin, setEditingBulletin] = useState(null);
   const [notification, setNotification] = useState(null);
 
-  // --- SAMPLE BULLETIN DATA ---
-  const [bulletins, setBulletins] = useState([
-    {
-      id: 1,
-      sabbathDate: '2026-07-25',
-      title: 'Sabbath Bulletin - July 25, 2026',
-      fileName: 'Newlife_Bulletin_25_Jul_2026.pdf',
-      fileSize: '2.4 MB',
-      fileUrl: '#',
-      uploadedBy: 'Church Clerk',
-      uploadDate: '2026-07-24'
-    },
-    {
-      id: 2,
-      sabbathDate: '2026-07-18',
-      title: 'Sabbath Bulletin - July 18, 2026',
-      fileName: 'Newlife_Bulletin_18_Jul_2026.pdf',
-      fileSize: '2.1 MB',
-      fileUrl: '#',
-      uploadedBy: 'Church Clerk',
-      uploadDate: '2026-07-17'
-    },
-    {
-      id: 3,
-      sabbathDate: '2026-07-11',
-      title: 'Sabbath Bulletin - July 11, 2026',
-      fileName: 'Newlife_Bulletin_11_Jul_2026.pdf',
-      fileSize: '1.9 MB',
-      fileUrl: '#',
-      uploadedBy: 'Church Clerk',
-      uploadDate: '2026-07-10'
-    },
-    {
-      id: 4,
-      sabbathDate: '2026-07-04',
-      title: 'Sabbath Bulletin - July 04, 2026',
-      fileName: 'Newlife_Bulletin_04_Jul_2026.pdf',
-      fileSize: '2.8 MB',
-      fileUrl: '#',
-      uploadedBy: 'Church Clerk',
-      uploadDate: '2026-07-03'
-    }
-  ]);
-
-  // --- UPLOAD FORM STATE ---
-  const [uploadForm, setUploadForm] = useState({
+  // Form State for Upload & Edit
+  const [formData, setFormData] = useState({
     sabbathDate: '',
     title: '',
     file: null,
     shareToWhatsappImmediately: true
   });
 
-  // Trigger Notification Toast
-  const showToast = (msg) => {
-    setNotification(msg);
+  const showToast = (msg, isError = false) => {
+    setNotification({ message: msg, isError });
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Helper: Share Bulletin via WhatsApp
+  // --- FETCH BULLETINS FROM API ---
+  const fetchBulletins = async () => {
+    setIsLoading(true);
+    try {
+      const response = await API.get('/bulletins/', {
+        params: { year: selectedYear }
+      });
+      const data = Array.isArray(response.data) ? response.data : (response.data.data || []);
+      setBulletins(data);
+    } catch (err) {
+      console.error('Failed to fetch bulletins:', err);
+      showToast('Error loading bulletins. Please try again.', true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBulletins();
+  }, [selectedYear]);
+
+  // --- WHATSAPP SHARE ---
   const handleWhatsAppShare = (bulletin) => {
-    const formattedDate = new Date(bulletin.sabbathDate).toLocaleDateString('en-GB', {
+    const formattedDate = new Date(bulletin.sabbathDate || bulletin.sabbath_date).toLocaleDateString('en-GB', {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
       year: 'numeric'
     });
 
+    const fileUrl = bulletin.fileUrl || bulletin.file_url || `${window.location.origin}${bulletin.file}`;
+
     const message = 
       `*NEWLIFE SDA CHURCH - WEEKLY BULLETIN*\n` +
       `📅 *Sabbath Date:* ${formattedDate}\n` +
       `📄 *Title:* ${bulletin.title}\n\n` +
       `Greetings saints! Please find the official church bulletin for this Sabbath attached below or download it directly using the link:\n` +
-      `🔗 ${window.location.origin}/bulletins/${bulletin.fileName}\n\n` +
+      `🔗 ${fileUrl}\n\n` +
       `Blessed Sabbath! 🙏✨`;
 
     const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://web.whatsapp.com/send?text=${encodedMessage}`;
-    
-    window.open(whatsappUrl, '_blank');
-    showToast(`WhatsApp broadcast initiated for ${bulletin.sabbathDate}`);
+    window.open(`https://web.whatsapp.com/send?text=${encodedMessage}`, '_blank');
+    showToast(`WhatsApp broadcast message generated.`);
   };
 
-  // Submit Upload Form
-  const handleUploadSubmit = (e) => {
+  // --- CREATE BULLETIN ---
+  const handleUploadSubmit = async (e) => {
     e.preventDefault();
-    if (!uploadForm.file || !uploadForm.sabbathDate) return;
+    if (!formData.file || !formData.sabbathDate) return;
 
-    const formattedDateStr = new Date(uploadForm.sabbathDate).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
+    setIsSubmitting(true);
+    try {
+      const payload = new FormData();
+      payload.append('sabbath_date', formData.sabbathDate);
+      payload.append('title', formData.title);
+      payload.append('file', formData.file);
+      payload.append('uploaded_by', activeUserName);
 
-    const newBulletin = {
-      id: Date.now(),
-      sabbathDate: uploadForm.sabbathDate,
-      title: uploadForm.title || `Sabbath Bulletin - ${formattedDateStr}`,
-      fileName: uploadForm.file.name,
-      fileSize: `${(uploadForm.file.size / (1024 * 1024)).toFixed(1)} MB`,
-      fileUrl: URL.createObjectURL(uploadForm.file),
-      uploadedBy: 'Church Clerk',
-      uploadDate: new Date().toISOString().split('T')[0]
-    };
+      const response = await API.post('/bulletins/', payload, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
 
-    setBulletins([newBulletin, ...bulletins]);
-    setIsUploadModalOpen(false);
+      const newBulletin = response.data.data || response.data;
+      setBulletins((prev) => [newBulletin, ...prev]);
+      setIsUploadModalOpen(false);
+      showToast('Bulletin uploaded successfully!');
 
-    showToast('Bulletin uploaded successfully!');
+      if (formData.shareToWhatsappImmediately) {
+        setTimeout(() => handleWhatsAppShare(newBulletin), 500);
+      }
 
-    if (uploadForm.shareToWhatsappImmediately) {
-      setTimeout(() => handleWhatsAppShare(newBulletin), 500);
+      setFormData({ sabbathDate: '', title: '', file: null, shareToWhatsappImmediately: true });
+    } catch (err) {
+      console.error('Failed to upload bulletin:', err);
+      showToast(err.response?.data?.message || 'Failed to upload bulletin', true);
+    } finally {
+      setIsSubmitting(false);
     }
+  };
 
-    setUploadForm({
-      sabbathDate: '',
-      title: '',
+  // --- EDIT BULLETIN ---
+  const handleOpenEditModal = (bulletin) => {
+    setEditingBulletin(bulletin);
+    setFormData({
+      sabbathDate: bulletin.sabbathDate || bulletin.sabbath_date || '',
+      title: bulletin.title || '',
       file: null,
-      shareToWhatsappImmediately: true
+      shareToWhatsappImmediately: false
     });
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editingBulletin) return;
+
+    setIsSubmitting(true);
+    try {
+      const payload = new FormData();
+      payload.append('sabbath_date', formData.sabbathDate);
+      payload.append('title', formData.title);
+      if (formData.file) {
+        payload.append('file', formData.file);
+      }
+
+      const id = editingBulletin.id || editingBulletin._id;
+      const response = await API.patch(`/bulletins/${id}/`, payload, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const updatedBulletin = response.data.data || response.data;
+      setBulletins(prev => prev.map(b => (b.id === id || b._id === id) ? updatedBulletin : b));
+      setIsEditModalOpen(false);
+      setEditingBulletin(null);
+      showToast('Bulletin entry updated successfully!');
+    } catch (err) {
+      console.error('Failed to update bulletin:', err);
+      showToast('Failed to update bulletin entry', true);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   // Filter & Pagination Logic
   const filteredBulletins = bulletins.filter(b => {
-    const matchesSearch = b.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          b.sabbathDate.includes(searchTerm);
-    const matchesYear = b.sabbathDate.startsWith(selectedYear);
+    const title = b.title || '';
+    const sabbathDate = b.sabbathDate || b.sabbath_date || '';
+    const matchesSearch = title.toLowerCase().includes(searchTerm.toLowerCase()) || sabbathDate.includes(searchTerm);
+    const matchesYear = sabbathDate.startsWith(selectedYear);
     return matchesSearch && matchesYear;
   });
 
@@ -168,9 +196,11 @@ const Communication = () => {
       
       {/* TOAST NOTIFICATION */}
       {notification && (
-        <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 text-base animate-bounce">
-          <CheckCircle2 size={20} className="text-emerald-400" />
-          <span>{notification}</span>
+        <div className={`fixed top-5 right-5 z-50 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-3 text-base ${
+          notification.isError ? 'bg-rose-900' : 'bg-slate-900'
+        }`}>
+          <CheckCircle2 size={20} className={notification.isError ? 'text-rose-400' : 'text-emerald-400'} />
+          <span>{notification.message}</span>
         </div>
       )}
 
@@ -184,19 +214,20 @@ const Communication = () => {
         </div>
 
         <button
-          onClick={() => setIsUploadModalOpen(true)}
-          className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl text-base font-semibold transition cursor-pointer shadow-xs self-start md:self-auto"
+          onClick={() => {
+            setFormData({ sabbathDate: '', title: '', file: null, shareToWhatsappImmediately: true });
+            setIsUploadModalOpen(true);
+          }}
+          className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl text-base font-semibold transition cursor-pointer shadow-xs"
         >
           <Upload size={20} />
           <span>Upload Weekly Bulletin</span>
         </button>
       </div>
 
-      {/* SEARCH, FILTER & WHATSAPP QUICK ACTION BAR */}
+      {/* SEARCH & CONTROLS */}
       <div className="bg-white p-5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
-          
-          {/* Search Bar */}
           <div className="relative w-full sm:w-96">
             <Search size={20} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
@@ -211,7 +242,6 @@ const Communication = () => {
             />
           </div>
 
-          {/* Year Filter */}
           <select
             value={selectedYear}
             onChange={(e) => setSelectedYear(e.target.value)}
@@ -223,7 +253,6 @@ const Communication = () => {
           </select>
         </div>
 
-        {/* Quick Info Box */}
         <div className="flex items-center gap-2.5 text-sm font-semibold text-emerald-800 bg-emerald-50/80 px-4 py-2.5 rounded-lg border border-emerald-200/60 w-full sm:w-auto justify-center">
           <MessageSquare size={18} className="text-emerald-600" />
           <span>Church WhatsApp Integration Active</span>
@@ -245,73 +274,99 @@ const Communication = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-base text-slate-700">
-              {paginatedBulletins.length > 0 ? (
-                paginatedBulletins.map((bulletin) => (
-                  <tr key={bulletin.id} className="hover:bg-slate-50/80 transition">
-                    
-                    {/* Sabbath Date */}
-                    <td className="py-4.5 px-6 font-semibold text-slate-900 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <Calendar size={18} className="text-emerald-600" />
-                        <span>{bulletin.sabbathDate}</span>
-                      </div>
-                    </td>
+              {isLoading ? (
+                <tr>
+                  <td colSpan="6" className="py-12 text-center text-slate-500">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 size={22} className="animate-spin text-emerald-600" />
+                      <span>Loading bulletins...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedBulletins.length > 0 ? (
+                paginatedBulletins.map((bulletin) => {
+                  // Resolve Uploaded By Display Name
+                  const rawUser = bulletin.uploadedBy || bulletin.uploaded_by;
+                  const displayUser = (typeof rawUser === 'object' && rawUser?.name) 
+                    ? rawUser.name 
+                    : (typeof rawUser === 'string' && isNaN(rawUser)) 
+                      ? rawUser 
+                      : activeUserName;
 
-                    {/* Title */}
-                    <td className="py-4.5 px-6 font-bold text-slate-800 text-base">
-                      {bulletin.title}
-                    </td>
+                  const fileUrl = bulletin.fileUrl || bulletin.file_url || bulletin.file;
 
-                    {/* File Specs */}
-                    <td className="py-4.5 px-6 text-sm text-slate-500">
-                      <div className="font-semibold text-slate-700 text-base">{bulletin.fileName}</div>
-                      <div>{bulletin.fileSize}</div>
-                    </td>
+                  return (
+                    <tr key={bulletin.id || bulletin._id} className="hover:bg-slate-50/80 transition">
+                      <td className="py-4.5 px-6 font-semibold text-slate-900 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <Calendar size={18} className="text-emerald-600" />
+                          <span>{bulletin.sabbathDate || bulletin.sabbath_date}</span>
+                        </div>
+                      </td>
 
-                    {/* Uploaded By */}
-                    <td className="py-4.5 px-6 text-sm text-slate-600">
-                      <div className="font-medium text-slate-800 text-base">{bulletin.uploadedBy}</div>
-                      <div className="text-slate-400">{bulletin.uploadDate}</div>
-                    </td>
+                      <td className="py-4.5 px-6 font-bold text-slate-800 text-base">
+                        {bulletin.title}
+                      </td>
 
-                    {/* WhatsApp Action Button */}
-                    <td className="py-4.5 px-6 text-center">
-                      <button
-                        onClick={() => handleWhatsAppShare(bulletin)}
-                        className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-4 py-2 rounded-lg font-semibold text-sm transition cursor-pointer"
-                        title="Share this bulletin to Church WhatsApp Group"
-                      >
-                        <Send size={15} className="text-emerald-600" />
-                        <span>WhatsApp</span>
-                      </button>
-                    </td>
+                      <td className="py-4.5 px-6 text-sm text-slate-500">
+                        <div className="font-semibold text-slate-700 text-base">{bulletin.fileName || bulletin.file_name || 'Bulletin PDF'}</div>
+                        <div>{bulletin.fileSize || bulletin.file_size || '0.9 MB'}</div>
+                      </td>
 
-                    {/* Action Controls */}
-                    <td className="py-4.5 px-6 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-3">
+                      <td className="py-4.5 px-6 text-sm text-slate-600">
+                        <div className="font-semibold text-slate-800 text-base">{displayUser}</div>
+                        <div className="text-slate-400">{bulletin.uploadDate || bulletin.upload_date || bulletin.createdAt?.split('T')[0] || '2026-07-26'}</div>
+                      </td>
+
+                      <td className="py-4.5 px-6 text-center">
                         <button
-                          onClick={() => setSelectedBulletin(bulletin)}
-                          className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                          title="Preview Bulletin"
+                          onClick={() => handleWhatsAppShare(bulletin)}
+                          className="inline-flex items-center justify-center gap-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-4 py-2 rounded-lg font-semibold text-sm transition cursor-pointer"
                         >
-                          <Eye size={20} />
+                          <Send size={15} className="text-emerald-600" />
+                          <span>WhatsApp</span>
                         </button>
+                      </td>
 
-                        <a
-                          href={bulletin.fileUrl}
-                          download={bulletin.fileName}
-                          className="p-2 text-slate-500 hover:text-blue-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
-                          title="Download Bulletin PDF"
-                        >
-                          <Download size={20} />
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      <td className="py-4.5 px-6 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-2">
+                          {/* VIEW PREVIEW BUTTON */}
+                          <button
+                            onClick={() => setSelectedBulletin(bulletin)}
+                            className="p-2 text-slate-500 hover:text-emerald-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                            title="Preview Bulletin PDF"
+                          >
+                            <Eye size={20} />
+                          </button>
+
+                          {/* EDIT BUTTON */}
+                          <button
+                            onClick={() => handleOpenEditModal(bulletin)}
+                            className="p-2 text-slate-500 hover:text-amber-600 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                            title="Edit Bulletin Entry"
+                          >
+                            <Pencil size={19} />
+                          </button>
+
+                          {/* DOWNLOAD BUTTON */}
+                          <a
+                            href={fileUrl}
+                            download={bulletin.fileName || bulletin.file_name || 'bulletin.pdf'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-slate-500 hover:text-blue-700 hover:bg-slate-100 rounded-lg transition cursor-pointer"
+                            title="Download PDF"
+                          >
+                            <Download size={20} />
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
-                  <td colSpan="6" className="py-12 text-center text-slate-400 text-base">
+                  <td colSpan="6" className="py-12 text-center text-slate-400">
                     No Sabbath bulletins found for the selected filter.
                   </td>
                 </tr>
@@ -320,7 +375,7 @@ const Communication = () => {
           </table>
         </div>
 
-        {/* PAGINATION BAR */}
+        {/* PAGINATION */}
         <div className="p-4 bg-slate-50/60 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm font-medium text-slate-600">
           <div>
             Showing <span className="font-semibold text-slate-800">{filteredBulletins.length === 0 ? 0 : startIndex + 1}</span> to{' '}
@@ -332,19 +387,17 @@ const Communication = () => {
             <button
               disabled={currentPage === 1}
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-              className="p-2 bg-white border border-slate-200 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition cursor-pointer text-slate-700"
+              className="p-2 bg-white border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50 transition cursor-pointer"
             >
               <ChevronLeft size={18} />
             </button>
-
-            <span className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-slate-800 text-sm">
+            <span className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg font-semibold text-slate-800">
               Page {currentPage} of {totalPages}
             </span>
-
             <button
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-              className="p-2 bg-white border border-slate-200 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition cursor-pointer text-slate-700"
+              className="p-2 bg-white border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50 transition cursor-pointer"
             >
               <ChevronRight size={18} />
             </button>
@@ -352,177 +405,220 @@ const Communication = () => {
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* MODAL 1: UPLOAD WEEKLY BULLETIN MODAL                                     */}
-      {/* ========================================================================= */}
+      {/* UPLOAD BULLETIN MODAL */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
-            
-            {/* Header */}
             <div className="bg-slate-900 p-5 flex items-center justify-between text-white">
               <h3 className="font-semibold text-lg flex items-center gap-2.5">
                 <FileUp className="text-emerald-400" size={22} /> Upload Sabbath Bulletin
               </h3>
-              <button 
-                onClick={() => setIsUploadModalOpen(false)} 
-                className="text-slate-400 hover:text-white cursor-pointer"
-              >
+              <button onClick={() => setIsUploadModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
                 <X size={22} />
               </button>
             </div>
 
-            {/* Form */}
-            <form onSubmit={handleUploadSubmit} className="p-6 space-y-4.5 text-base font-medium text-slate-700">
-              
-              {/* Sabbath Date Input */}
+            <form onSubmit={handleUploadSubmit} className="p-6 space-y-4 text-base font-medium text-slate-700">
               <div>
-                <label className="block font-semibold mb-1.5 text-slate-800 text-base">Sabbath Date *</label>
+                <label className="block font-semibold mb-1.5 text-slate-800">Sabbath Date *</label>
                 <input
                   type="date"
                   required
-                  value={uploadForm.sabbathDate}
-                  onChange={(e) => setUploadForm({...uploadForm, sabbathDate: e.target.value})}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-base focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+                  value={formData.sabbathDate}
+                  onChange={(e) => setFormData({...formData, sabbathDate: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
-              {/* Optional Custom Title */}
               <div>
-                <label className="block font-semibold mb-1.5 text-slate-800 text-base">Bulletin Title (Optional)</label>
+                <label className="block font-semibold mb-1.5 text-slate-800">Bulletin Title (Optional)</label>
                 <input
                   type="text"
-                  placeholder="e.g. Sabbath Bulletin - July 25, 2026"
-                  value={uploadForm.title}
-                  onChange={(e) => setUploadForm({...uploadForm, title: e.target.value})}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-base focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+                  placeholder="e.g. Sabbath Bulletin 2026/25/7"
+                  value={formData.title}
+                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500"
                 />
               </div>
 
-              {/* Document Dropzone */}
               <div>
-                <label className="block font-semibold mb-1.5 text-slate-800 text-base">Upload Bulletin Document (PDF) *</label>
-                <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 bg-slate-50 hover:bg-slate-100/50 transition text-center cursor-pointer relative">
+                <label className="block font-semibold mb-1.5 text-slate-800">Upload Bulletin Document (PDF) *</label>
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-6 bg-slate-50 text-center relative cursor-pointer">
                   <input
                     type="file"
                     required
                     accept=".pdf"
-                    onChange={(e) => setUploadForm({...uploadForm, file: e.target.files[0]})}
+                    onChange={(e) => setFormData({...formData, file: e.target.files[0]})}
                     className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                   />
-                  <div className="flex flex-col items-center justify-center space-y-1.5">
-                    <FileText size={30} className="text-emerald-600 mb-1" />
-                    <p className="text-base font-semibold text-slate-700">
-                      {uploadForm.file ? uploadForm.file.name : 'Click to select or drop Bulletin PDF'}
-                    </p>
-                    <p className="text-sm text-slate-400">PDF document up to 15MB</p>
-                  </div>
+                  <FileText size={30} className="text-emerald-600 mx-auto mb-1" />
+                  <p className="font-semibold text-slate-700">{formData.file ? formData.file.name : 'Click to select or drop Bulletin PDF'}</p>
                 </div>
               </div>
 
-              {/* Checkbox: Auto WhatsApp Share */}
-              <div className="pt-2 flex items-center gap-3">
+              <div className="flex items-center gap-3 pt-2">
                 <input
                   type="checkbox"
                   id="whatsappCheck"
-                  checked={uploadForm.shareToWhatsappImmediately}
-                  onChange={(e) => setUploadForm({...uploadForm, shareToWhatsappImmediately: e.target.checked})}
-                  className="w-5 h-5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                  checked={formData.shareToWhatsappImmediately}
+                  onChange={(e) => setFormData({...formData, shareToWhatsappImmediately: e.target.checked})}
+                  className="w-5 h-5 text-emerald-600 rounded border-slate-300"
                 />
                 <label htmlFor="whatsappCheck" className="text-sm font-semibold text-slate-700 cursor-pointer">
                   Prompt WhatsApp Share immediately after upload
                 </label>
               </div>
 
-              {/* Actions */}
               <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsUploadModalOpen(false)}
-                  className="px-5 py-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-base font-medium cursor-pointer"
+                  className="px-5 py-2.5 rounded-lg border border-slate-200 text-slate-600"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-base font-semibold rounded-lg shadow-2xs cursor-pointer transition flex items-center gap-2"
+                  disabled={isSubmitting}
+                  className="px-6 py-2.5 bg-emerald-600 text-white font-semibold rounded-lg shadow-2xs hover:bg-emerald-700 flex items-center gap-2"
                 >
-                  <Upload size={18} />
-                  <span>Upload Bulletin</span>
+                  {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Upload size={18} />}
+                  <span>{isSubmitting ? 'Uploading...' : 'Upload Bulletin'}</span>
                 </button>
               </div>
-
             </form>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* MODAL 2: BULLETIN PREVIEW & SHARE MODAL                                   */}
-      {/* ========================================================================= */}
-      {selectedBulletin && (
+      {/* EDIT BULLETIN MODAL */}
+      {isEditModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
-            
-            {/* Header */}
+          <div className="bg-white rounded-xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
             <div className="bg-slate-900 p-5 flex items-center justify-between text-white">
+              <h3 className="font-semibold text-lg flex items-center gap-2.5">
+                <Pencil className="text-amber-400" size={20} /> Edit Bulletin Record
+              </h3>
+              <button onClick={() => setIsEditModalOpen(false)} className="text-slate-400 hover:text-white cursor-pointer">
+                <X size={22} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="p-6 space-y-4 text-base font-medium text-slate-700">
+              <div>
+                <label className="block font-semibold mb-1.5 text-slate-800">Sabbath Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={formData.sabbathDate}
+                  onChange={(e) => setFormData({...formData, sabbathDate: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1.5 text-slate-800">Bulletin Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.title}
+                  onChange={(e) => setFormData({...formData, title: e.target.value})}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1.5 text-slate-800">Replace Document (Optional)</label>
+                <div className="border-2 border-dashed border-slate-200 rounded-xl p-5 bg-slate-50 text-center relative cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    onChange={(e) => setFormData({...formData, file: e.target.files[0]})}
+                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                  />
+                  <FileText size={26} className="text-amber-600 mx-auto mb-1" />
+                  <p className="font-semibold text-slate-700 text-sm">
+                    {formData.file ? formData.file.name : 'Select new PDF file to overwrite existing document'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-5 py-2.5 rounded-lg border border-slate-200 text-slate-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-6 py-2.5 bg-amber-600 text-white font-semibold rounded-lg shadow-2xs hover:bg-amber-700 flex items-center gap-2"
+                >
+                  {isSubmitting ? <Loader2 size={18} className="animate-spin" /> : <Pencil size={18} />}
+                  <span>{isSubmitting ? 'Saving...' : 'Update Record'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW / PREVIEW BULLETIN MODAL */}
+      {selectedBulletin && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-4xl w-full h-[85vh] border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
+            
+            {/* Modal Header */}
+            <div className="bg-slate-900 p-4 px-6 flex items-center justify-between text-white shrink-0">
               <div>
                 <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                  Sabbath Date: {selectedBulletin.sabbathDate}
+                  Sabbath Date: {selectedBulletin.sabbathDate || selectedBulletin.sabbath_date}
                 </span>
                 <h3 className="font-bold text-lg mt-0.5">{selectedBulletin.title}</h3>
               </div>
               <button 
                 onClick={() => setSelectedBulletin(null)} 
-                className="text-slate-400 hover:text-white cursor-pointer"
+                className="text-slate-400 hover:text-white cursor-pointer p-1"
               >
-                <X size={22} />
+                <X size={24} />
               </button>
             </div>
 
-            {/* Body Preview */}
-            <div className="p-6 space-y-4 bg-slate-50">
-              <div className="bg-white p-6 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col items-center justify-center text-center space-y-3">
-                <div className="w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
-                  <FileText size={32} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-900 text-lg">{selectedBulletin.fileName}</h4>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Size: {selectedBulletin.fileSize} | Uploaded by {selectedBulletin.uploadedBy} on {selectedBulletin.uploadDate}
-                  </p>
-                </div>
-              </div>
+            {/* Embedded PDF Preview */}
+            <div className="flex-1 bg-slate-100 relative">
+              <iframe
+                src={selectedBulletin.fileUrl || selectedBulletin.file_url || selectedBulletin.file}
+                title={selectedBulletin.title}
+                className="w-full h-full border-none"
+              />
+            </div>
 
-              {/* Action Buttons inside Preview */}
-              <div className="grid grid-cols-2 gap-3 pt-2">
+            {/* Modal Footer Controls */}
+            <div className="p-4 bg-white border-t border-slate-200 flex items-center justify-between shrink-0">
+              <div className="text-sm text-slate-500 font-medium">
+                Uploaded by <span className="font-semibold text-slate-800">{activeUserName}</span>
+              </div>
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => handleWhatsAppShare(selectedBulletin)}
-                  className="flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl text-sm transition cursor-pointer shadow-2xs"
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition cursor-pointer"
                 >
-                  <Send size={16} />
-                  <span>Send to WhatsApp Group</span>
+                  <Send size={15} />
+                  <span>Share via WhatsApp</span>
                 </button>
-
                 <a
-                  href={selectedBulletin.fileUrl}
-                  download={selectedBulletin.fileName}
-                  className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold py-3 px-4 rounded-xl text-sm transition cursor-pointer shadow-2xs"
+                  href={selectedBulletin.fileUrl || selectedBulletin.file_url || selectedBulletin.file}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white font-semibold py-2 px-4 rounded-lg text-sm transition cursor-pointer"
                 >
-                  <Download size={16} />
-                  <span>Download Document</span>
+                  <Download size={15} />
+                  <span>Download PDF</span>
                 </a>
               </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 bg-white border-t border-slate-200 flex justify-end">
-              <button
-                onClick={() => setSelectedBulletin(null)}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-lg cursor-pointer transition"
-              >
-                Close Preview
-              </button>
             </div>
 
           </div>

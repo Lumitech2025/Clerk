@@ -19,7 +19,7 @@ import {
   Loader2
 } from 'lucide-react';
 
-const API_BASE_URL = 'http://localhost:8000/api/baptisms/';
+import API from '../../../api/api';
 
 // Reusable KPI Stat Card
 const KpiCard = ({ title, value, icon: Icon, valueColor, iconBg }) => {
@@ -79,20 +79,12 @@ const BaptismsModule = ({ currentUserRole = 'Church Clerk' }) => {
   const fetchBaptisms = async () => {
     setLoading(true);
     try {
-      const response = await fetch(API_BASE_URL, {
-        headers: getAuthHeaders(),
-      });
-      
-      if (response.status === 401) {
-        throw new Error('Authentication required. Please log in again.');
-      }
-      if (!response.ok) throw new Error('Failed to fetch baptism records');
-      
-      const data = await response.json();
+      const response = await API.get('/baptisms/');
+      const data = response.data;
       setBaptisms(Array.isArray(data) ? data : data.results || []);
       setError(null);
     } catch (err) {
-      setError(err.message);
+      setError(err.response?.data?.detail || err.message);
     } finally {
       setLoading(false);
     }
@@ -111,11 +103,7 @@ const BaptismsModule = ({ currentUserRole = 'Church Clerk' }) => {
   // Inline Status Change Handler (PATCH)
   const handleStatusChange = async (id, newStatus) => {
     try {
-      const response = await fetch(`${API_BASE_URL}${id}/`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ status: newStatus })
-      });
+      const response = await API.patch(`/baptisms/${id}/`, { status: newStatus });
 
       if (!response.ok) {
         const errData = await response.json();
@@ -133,10 +121,7 @@ const BaptismsModule = ({ currentUserRole = 'Church Clerk' }) => {
   const handleSendReminder = async (record) => {
     setReminderSendingId(record.id);
     try {
-      const response = await fetch(`${API_BASE_URL}${record.id}/send-reminder/`, {
-        method: 'POST',
-        headers: getAuthHeaders()
-      });
+      const response = await API.post(`/baptisms/${record.id}/send-reminder/`);
 
       if (!response.ok) {
         const errData = await response.json();
@@ -152,7 +137,7 @@ const BaptismsModule = ({ currentUserRole = 'Church Clerk' }) => {
     }
   };
 
-  // Form Submit Handler (POST)
+  
     // Form Submit Handler (POST)
     const handleFormSubmit = async (e) => {
       e.preventDefault();
@@ -171,28 +156,18 @@ const BaptismsModule = ({ currentUserRole = 'Church Clerk' }) => {
         status: formData.status,
       };
 
-      // Log payload to browser console for debugging
       console.log('Sending Payload:', payload);
 
       try {
-        const response = await fetch(API_BASE_URL, {
-          method: 'POST',
-          headers: getAuthHeaders(),
-          body: JSON.stringify(payload), // Send the JSON-stringified snake_case object
-        });
+        // 2. Use centralized Axios instance (API) instead of fetch(API_BASE_URL)
+        const response = await API.post('/baptisms/', payload);
+        const newRecord = response.data;
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.detail || JSON.stringify(errorData));
-        }
-
-        const newRecord = await response.json();
-        
-        // Update local state with newly saved record
+        // 3. Update local state with newly saved record
         setBaptisms([newRecord, ...baptisms]);
         setIsModalOpen(false);
-        
-        // Reset form state
+
+        // 4. Reset form state
         setFormData({
           fullName: '',
           dob: '',
@@ -202,15 +177,22 @@ const BaptismsModule = ({ currentUserRole = 'Church Clerk' }) => {
           officiatingPastor: '',
           placeOfBaptism: 'Newlife Main Sanctuary',
           baptismDate: '',
-          status: 'Processing'
+          status: 'Processing',
         });
       } catch (err) {
-        alert(`Error creating record: ${err.message}`);
+        console.error('Error creating record:', err);
+        // DRF validation errors usually come back under err.response.data
+        const errorMessage =
+          err.response?.data?.detail ||
+          (typeof err.response?.data === 'object'
+            ? JSON.stringify(err.response.data)
+            : err.message);
+
+        alert(`Error creating record: ${errorMessage}`);
       } finally {
         setSubmitting(false);
       }
     };
-
   // Helper for status badge styling
   const getStatusStyle = (status) => {
     switch (status) {

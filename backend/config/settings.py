@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import environ
 from datetime import timedelta
+from django.conf.urls.static import static
 
 # 1. Initialize environment parser
 env = environ.Env(
@@ -10,6 +11,13 @@ env = environ.Env(
 
 # 2. Define BASE_DIR (points to project root)
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+# Media files configuration
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
 
 # 3. Explicitly read the .env file located at BASE_DIR / '.env'
 env_file = os.path.join(BASE_DIR, '.env')
@@ -29,22 +37,10 @@ AUTH_USER_MODEL = 'authentication.User'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
-    ),
-}
-
-# settings.py
-REST_FRAMEWORK = {
-    'DEFAULT_RENDERER_CLASSES': (
-        'djangorestframework_camel_case.render.CamelCaseJSONRenderer',
-        'djangorestframework_camel_case.render.CamelCaseBrowsableAPIRenderer',
-    ),
-    'DEFAULT_PARSER_CLASSES': (
-        'djangorestframework_camel_case.parser.CamelCaseFormParser',
-        'djangorestframework_camel_case.parser.CamelCaseMultiPartParser',
-        'djangorestframework_camel_case.parser.CamelCaseJSONParser',
     ),
 }
 
@@ -73,6 +69,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'django_filters',
 
     # CCIS Local Apps
     'authentication',
@@ -127,6 +124,8 @@ DATABASES = {
         default=f"postgres://{env('DB_USER', default='postgres')}:{env('DB_PASSWORD', default='')}@{env('DB_HOST', default='localhost')}:{env('DB_PORT', default='5432')}/{env('DB_NAME', default='clerk')}"
     )
 }
+
+
 
 # 9. Redis Cache Setup
 CACHES = {

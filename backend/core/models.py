@@ -2,6 +2,12 @@ from django.db import models
 from django.conf import settings
 from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
+import os
+from django.db import models
+from django.contrib.auth import get_user_model
+
+
+User = get_user_model()
 
 
 class BaptismRecord(models.Model):
@@ -102,3 +108,188 @@ class ChildDedication(models.Model):
 
     def __str__(self):
         return f"{self.child_name} - Dedicated {self.dedication_date}"
+
+
+def upload_tor_path(instance, filename):
+    return os.path.join('departments/tors/', filename)
+
+def upload_report_path(instance, filename):
+    return os.path.join('departments/reports/', filename)
+
+
+class Department(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+    leader = models.CharField(max_length=255)
+    # Stores dynamic list of objects: [{"name": "John Doe", "role": "Secretary"}]
+    council_members = models.JSONField(default=list, blank=True)
+    tor_doc = models.FileField(upload_to=upload_tor_path, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+class DepartmentRole(models.Model):
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='council_roles')
+    member_name = models.CharField(max_length=255)
+    designation = models.CharField(max_length=100) # e.g., "Chairman", "Secretary", "Sponsor"
+    
+    def __str__(self):
+        return f"{self.member_name} - {self.designation} ({self.department.name})"
+
+
+class DepartmentalReport(models.Model):
+    REPORT_TYPES = (
+        ('Monthly Report', 'Monthly Report'),
+        ('Quarterly Report', 'Quarterly Report'),
+        ('Event Report', 'Event Report'),
+    )
+
+    department = models.ForeignKey(
+        Department, 
+        on_delete=models.CASCADE, 
+        related_name='reports'
+    )
+    report_type = models.CharField(max_length=50, choices=REPORT_TYPES)
+    date = models.DateField()
+    title = models.CharField(max_length=255)
+    report_file = models.FileField(upload_to=upload_report_path)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date', '-uploaded_at']
+
+    def __str__(self):
+        return f"{self.department.name} - {self.report_type} ({self.date})"
+
+
+
+
+class Bulletin(models.Model):
+    sabbath_date = models.DateField(
+        help_text="The Sabbath date for this bulletin"
+    )
+    title = models.CharField(
+        max_length=255, 
+        blank=True, 
+        help_text="Optional custom title (e.g. Sabbath Bulletin - July 25, 2026)"
+    )
+    file = models.FileField(
+        upload_to='bulletins/%Y/%m/',
+        help_text="Upload Bulletin PDF document"
+    )
+    file_size = models.CharField(max_length=50, blank=True, null=True)
+    uploaded_by = models.ForeignKey(
+        User, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name='uploaded_bulletins'
+    )
+    upload_date = models.DateTimeField(auto_now_add=True)
+    
+    # Broadcast Metadata
+    whatsapp_sent = models.BooleanField(default=False)
+    whatsapp_sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-sabbath_date']
+        verbose_name = "Sabbath Bulletin"
+        verbose_name_plural = "Sabbath Bulletins"
+
+    def __str__(self):
+        return f"Bulletin for {self.sabbath_date} - {self.title or 'Weekly Bulletin'}"
+
+    def save(self, *args, **kwargs):
+        if self.file and not self.file_size:
+            # Format file size in MB
+            size_mb = self.file.size / (1024 * 1024)
+            self.file_size = f"{size_mb:.1f} MB"
+        
+        if not self.title and self.sabbath_date:
+            self.title = f"Sabbath Bulletin - {self.sabbath_date.strftime('%B %d, %Y')}"
+            
+        super().save(*args, **kwargs)
+
+
+
+
+class Meeting(models.Model):
+    CATEGORY_CHOICES = [
+        ('Board Meetings', 'Board Meetings'),
+        ('Business Meetings', 'Business Meetings'),
+        ('Membership Reviews', 'Membership Reviews'),
+        ('Delegate Related Meetings', 'Delegate Related Meetings'),
+        ('Election Process Meetings', 'Election Process Meetings'),
+        ('Committee Reporting Meetings', 'Committee Reporting Meetings'),
+    ]
+
+    STATUS_CHOICES = [
+        ('Pending Minutes', 'Pending Minutes'),
+        ('Minutes Confirmed', 'Minutes Confirmed'),
+    ]
+
+    meeting_ref = models.CharField(max_length=100, unique=True)
+    category = models.CharField(max_length=100, choices=CATEGORY_CHOICES, default='Board Meetings')
+    date = models.DateField()
+    time = models.CharField(max_length=100)
+    venue = models.CharField(max_length=255)
+    chairperson = models.CharField(max_length=255)
+    pastor = models.CharField(max_length=255)
+    clerk = models.CharField(max_length=255)
+    
+    agenda_doc = models.FileField(upload_to='meetings/agendas/', blank=True, null=True)
+    minutes_doc = models.FileField(upload_to='meetings/minutes/', blank=True, null=True)
+    physical_sheet = models.FileField(upload_to='meetings/sheets/', blank=True, null=True)
+    
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='Pending Minutes')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.meeting_ref} - {self.category} ({self.date})"
+
+
+class MeetingAttendance(models.Model):
+    STATUS_CHOICES = [
+        ('PR', 'Present'),
+        ('AA', 'Absent with Apology'),
+        ('WA', 'Absent without Apology'),
+    ]
+
+    meeting = models.ForeignKey(Meeting, on_delete=models.CASCADE, related_name='attendances')
+    member_name = models.CharField(max_length=255)
+    department = models.ForeignKey('core.Department', on_delete=models.SET_NULL, null=True, blank=True, related_name='meeting_attendances')
+    status = models.CharField(max_length=2, choices=STATUS_CHOICES, default='PR')
+    arrival_time = models.CharField(max_length=50, blank=True, null=True)
+    departure_time = models.CharField(max_length=50, blank=True, null=True)
+    recorded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('meeting', 'member_name')
+
+    def __str__(self):
+        return f"{self.member_name} - {self.meeting.meeting_ref} [{self.status}]"
+
+
+class AttendanceSheetUpload(models.Model):
+    meeting = models.ForeignKey(Meeting, on_delete=models.CASCADE, related_name='uploaded_sheets')
+    uploaded_file = models.FileField(upload_to='meetings/attendance_sheets/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    processed = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Sheet for {self.meeting.meeting_ref} ({self.uploaded_at.strftime('%Y-%m-%d')})"
+
+
+class AbsenceApology(models.Model):
+    meeting = models.ForeignKey(Meeting, on_delete=models.CASCADE, related_name='apologies')
+    member_name = models.CharField(max_length=255)
+    department = models.ForeignKey('core.Department', on_delete=models.SET_NULL, null=True, blank=True, related_name='apologies')
+    reason = models.TextField()
+    supporting_doc = models.FileField(upload_to='meetings/apologies/', blank=True, null=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Apology: {self.member_name} - {self.meeting.meeting_ref}"

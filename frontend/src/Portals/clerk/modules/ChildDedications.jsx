@@ -36,7 +36,6 @@ const KpiCard = ({ title, value, icon: Icon, valueColor, iconBg }) => {
   );
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 const ChildDedications = ({ currentUserRole = 'Church Clerk' }) => {
   // Asynchronous Data & State Management
@@ -81,22 +80,13 @@ const ChildDedications = ({ currentUserRole = 'Church Clerk' }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/child-dedications/`, {
-        method: 'GET',
-        headers: getAuthHeaders()
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch records (${response.status})`);
-      }
-
-      const data = await response.json();
-      // Supports array directly or structured responses e.g. { data: [...] }
-      const records = Array.isArray(data) ? data : (data.data || []);
+      const response = await API.get('/child-dedications/');
+      const data = response.data;
+      const records = Array.isArray(data) ? data : (data.results || data.data || []);
       setDedications(records);
     } catch (err) {
       console.error('Error fetching dedications:', err);
-      setError(err.message || 'Unable to load child dedication records.');
+      setError(err.response?.data?.detail || 'Unable to load child dedication records.');
     } finally {
       setIsLoading(false);
     }
