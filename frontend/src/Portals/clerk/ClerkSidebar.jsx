@@ -25,11 +25,7 @@ const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Church Cl
       label: 'Member Records', 
       icon: <Users size={22} />
     },
-    { 
-      id: 'transfers', 
-      label: 'Transfers',
-      icon: <ArrowLeftRight size={22} />,
-    },
+    
     { 
       id: 'baptisms', 
       label: 'Baptisms', 

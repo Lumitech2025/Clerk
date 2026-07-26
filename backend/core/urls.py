@@ -1,7 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import AbsenceApologyViewSet, BaptismViewSet, ChildDedicationViewSet, DepartmentViewSet, DepartmentalReportViewSet, BulletinViewSet,MeetingViewSet,MeetingAttendanceViewSet,AttendanceSheetUploadViewSet, AbsenceApologyViewSet
-
+from .views import AbsenceApologyViewSet, BaptismViewSet, ChildDedicationViewSet, DepartmentViewSet, DepartmentalReportViewSet, BulletinViewSet,MeetingViewSet,MeetingAttendanceViewSet,AttendanceSheetUploadViewSet, AbsenceApologyViewSet,MemberRecordViewSet
 router = DefaultRouter()
 router.register(r'baptisms', BaptismViewSet, basename='baptism')
 router.register(r'child-dedications', ChildDedicationViewSet, basename='child-dedication')
@@ -12,6 +11,7 @@ router.register(r'meetings', MeetingViewSet, basename='meeting')
 router.register(r'meeting-attendances', MeetingAttendanceViewSet, basename='meeting-attendance')
 router.register(r'attendance-sheets', AttendanceSheetUploadViewSet, basename='attendance-sheet')
 router.register(r'absence-apologies', AbsenceApologyViewSet, basename='absence-apology')
+router.register(r'member-records', MemberRecordViewSet, basename='member-record')
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import BaptismRecord, ChildDedication, Department, DepartmentalReport, Bulletin, Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology
+from .models import MemberRecord, BaptismRecord, ChildDedication, Department, DepartmentalReport, Bulletin, Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology
 
 @admin.register(BaptismRecord)
 class BaptismAdmin(admin.ModelAdmin):
@@ -87,3 +87,45 @@ class AttendanceSheetUploadAdmin(admin.ModelAdmin):
 class AbsenceApologyAdmin(admin.ModelAdmin):
     list_display = ('member_name', 'meeting', 'department', 'submitted_at')
     search_fields = ('member_name', 'reason', 'meeting__meeting_ref')
+
+
+@admin.register(MemberRecord)
+class MemberRecordAdmin(admin.ModelAdmin):
+    list_display = (
+        'full_name', 
+        'gender', 
+        'phone_number', 
+        'joining_method', 
+        'year_joined', 
+        'transfer_status', 
+        'is_active'
+    )
+    list_filter = ('joining_method', 'year_joined', 'gender', 'transfer_status', 'is_active')
+    search_fields = ('full_name', 'phone_number', 'email', 'approval_minute', 'cbm_minute')
+    ordering = ('-created_at',)
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('id', 'user', 'full_name', 'gender', 'date_of_birth', 'citizenship', 'phone_number', 'email', 'is_active')
+        }),
+        ('Parents Information', {
+            'fields': ('father_name', 'father_phone', 'father_email', 'mother_name', 'mother_phone', 'mother_email')
+        }),
+        ('Admission & Registry Info', {
+            'fields': ('joining_method', 'home_church', 'year_joined')
+        }),
+        ('Profession of Faith & Attachments', {
+            'fields': ('former_faith', 'previous_church_letter', 'parents_consent_letter', 'baptism_card')
+        }),
+        ('Transfer Progress Tracking', {
+            'fields': (
+                'transfer_status', 'transfer_type', 'origin_church', 'target_church',
+                'board_meeting_date', 'approval_minute', 'first_reading_date', 
+                'second_reading_date', 'cbm_minute'
+            )
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )

@@ -9,11 +9,13 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Count, Q
+from rest_framework.pagination import PageNumberPagination
+
 
 from authentication.permissions import IsChurchClerk, IsPastoralTeam
 
-from .models import BaptismRecord, ChildDedication, Department, DepartmentalReport, Bulletin, Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology
-from .serializers import BaptismSerializer, ChildDedicationSerializer, DepartmentSerializer, DepartmentalReportSerializer,  BulletinSerializer, MeetingSerializer, MeetingAttendanceSerializer, AttendanceSheetUploadSerializer, AbsenceApologySerializer
+from .models import BaptismRecord, ChildDedication, Department, DepartmentalReport, Bulletin, Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, MemberRecord
+from .serializers import BaptismSerializer, ChildDedicationSerializer, DepartmentSerializer, DepartmentalReportSerializer,  BulletinSerializer, MeetingSerializer, MeetingAttendanceSerializer, AttendanceSheetUploadSerializer, AbsenceApologySerializer, MemberRecordSerializer
 from .services import (
     send_welcome_baptism_notifications, 
     send_certificate_reminder_notifications,
@@ -273,4 +275,46 @@ class AbsenceApologyViewSet(viewsets.ModelViewSet):
                 'status': 'AA'
             }
         )
+
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+class IsClerkOrPastorOrElder(permissions.BasePermission):
+    """Custom Permission to enforce Role-Based Access Control."""
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+            
+        # 1. Superusers always have full access
+        if request.user.is_superuser:
+            return True
+            
+        # 2. Get role safely (from Custom User or Profile model)
+        user_role = getattr(request.user, 'role', None)
+        
+        # If your role field is on a related profile model instead, uncomment below:
+        # if user_role is None and hasattr(request.user, 'profile'):
+        #     user_role = getattr(request.user.profile, 'role', None)
+
+        if user_role in ['clerk', 'pastor', 'elder']:
+            return True
+            
+        if request.method in permissions.SAFE_METHODS and user_role in ['communication', 'department_leader', 'member']:
+            return True
+
+        return False
+
+class MemberRecordViewSet(viewsets.ModelViewSet):
+    queryset = MemberRecord.objects.all()
+    serializer_class = MemberRecordSerializer
+    pagination_class = StandardResultsSetPagination
+    permission_classes = [IsClerkOrPastorOrElder]
+    
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['year_joined', 'joining_method', 'gender', 'transfer_status', 'is_active']
+    search_fields = ['full_name', 'phone_number', 'email', 'origin_church']
+    ordering_fields = ['full_name', 'year_joined', 'created_at']
 

@@ -5,6 +5,7 @@ from django.utils.translation import gettext_lazy as _
 import os
 from django.db import models
 from django.contrib.auth import get_user_model
+import uuid
 
 
 User = get_user_model()
@@ -293,3 +294,93 @@ class AbsenceApology(models.Model):
 
     def __str__(self):
         return f"Apology: {self.member_name} - {self.meeting.meeting_ref}"
+
+
+
+
+class MethodOfEntry(models.TextChoices):
+    BAPTISM = 'Baptism', 'Baptism'
+    TRANSFER = 'Transfer', 'Transfer'
+    PROFESSION_OF_FAITH = 'Profession of Faith', 'Profession of Faith'
+
+class TransferStatus(models.TextChoices):
+    REQUEST_MADE = 'Request Made', 'Request Made'
+    BOARD_APPROVAL = 'Board Approval', 'Board Approval'
+    FIRST_READING = '1st Reading', '1st Reading'
+    SECOND_READING = '2nd Reading / Transfer Granted', '2nd Reading / Transfer Granted'
+
+class MemberRecord(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Optional One-to-One link with System User (For RBAC Member Access)
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='member_profile'
+    )
+
+    # Basic Personal Details
+    full_name = models.CharField(max_length=255, db_index=True)
+    gender = models.CharField(max_length=10, choices=[('Male', 'Male'), ('Female', 'Female')])
+    date_of_birth = models.DateField(null=True, blank=True)
+    citizenship = models.CharField(max_length=100, default='Kenyan')
+    phone_number = models.CharField(max_length=20, db_index=True, blank=True, null=True)
+    email = models.EmailField(blank=True, null=True)
+    
+    # Parent / Guardian Information
+    father_name = models.CharField(max_length=255, blank=True, null=True)
+    father_phone = models.CharField(max_length=20, blank=True, null=True)
+    father_email = models.EmailField(blank=True, null=True)
+    
+    mother_name = models.CharField(max_length=255, blank=True, null=True)
+    mother_phone = models.CharField(max_length=20, blank=True, null=True)
+    mother_email = models.EmailField(blank=True, null=True)
+
+    # Admission & Registry Tracking
+    joining_method = models.CharField(max_length=30, choices=MethodOfEntry.choices, default=MethodOfEntry.BAPTISM)
+    home_church = models.CharField(max_length=255, default='Newlife SDA Church')
+    year_joined = models.IntegerField(db_index=True)
+    date_joined = models.DateField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)
+
+    # Profession of Faith & Supporting Documents
+    former_faith = models.CharField(max_length=255, blank=True, null=True)
+    previous_church_letter = models.FileField(upload_to='letters/previous_church/', blank=True, null=True)
+    parents_consent_letter = models.FileField(upload_to='letters/parents/', blank=True, null=True)
+    baptism_card = models.FileField(upload_to='cards/baptism/', blank=True, null=True)
+
+    # Transfer Specific Fields
+    transfer_status = models.CharField(
+        max_length=50, 
+        choices=TransferStatus.choices, 
+        default=TransferStatus.REQUEST_MADE,
+        blank=True, null=True
+    )
+    transfer_type = models.CharField(
+        max_length=20, 
+        choices=[('Transfer In', 'Transfer In'), ('Transfer Out', 'Transfer Out')],
+        default='Transfer In',
+        blank=True, null=True
+    )
+    origin_church = models.CharField(max_length=255, blank=True, null=True)
+    target_church = models.CharField(max_length=255, blank=True, null=True)
+    board_meeting_date = models.DateField(null=True, blank=True)
+    approval_minute = models.CharField(max_length=100, blank=True, null=True)
+    first_reading_date = models.DateField(null=True, blank=True)
+    second_reading_date = models.DateField(null=True, blank=True)
+    cbm_minute = models.CharField(max_length=100, blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['year_joined', 'joining_method']),
+            models.Index(fields=['full_name', 'phone_number']),
+        ]
+
+    def __str__(self):
+        return f"{self.full_name} ({self.joining_method})"

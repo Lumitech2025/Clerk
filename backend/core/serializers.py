@@ -1,6 +1,6 @@
 from rest_framework import serializers
 import json
-from .models import BaptismRecord, ChildDedication,Department, DepartmentalReport, Bulletin,Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, Department
+from .models import BaptismRecord, ChildDedication,Department, DepartmentalReport, Bulletin,Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, Department, MemberRecord
 
 class BaptismSerializer(serializers.ModelSerializer):
     class Meta:
@@ -222,3 +222,9 @@ class MeetingSerializer(serializers.ModelSerializer):
             return 0.0
         present_count = obj.attendances.filter(status='PR').count()
         return round((present_count / total_records) * 100, 2)
+
+class MemberRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MemberRecord
+        fields = '__all__'
+        read_only_fields = ['id', 'created_at', 'updated_at']

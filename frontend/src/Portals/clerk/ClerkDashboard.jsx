@@ -30,6 +30,7 @@ import {
   Legend, 
   ResponsiveContainer 
 } from 'recharts';
+import MembershipRecords from './modules/MembershipRecords';
 
 const ClerkDashboard = () => {
   const { user, logout } = useContext(AuthContext);
@@ -293,11 +294,7 @@ const ClerkDashboard = () => {
 
           {/* 3. MEMBERSHIP RECORDS MODULE */}
           {activeTab === 'membership' && (
-            <ModulePlaceholder 
-              title="Membership Records & Transfers"
-              description="Manage official church membership rolls, incoming/outgoing transfer letters, attestation status, and member master directories."
-              icon={FaUsers}
-            />
+            <MembershipRecords currentUserRole={currentUserRole} />
           )}
 
           {/* 4. CHILD DEDICATIONS MODULE */}
