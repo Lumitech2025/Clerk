@@ -9,5 +9,6 @@ urlpatterns = [
     # Authentication Endpoints
     path('api/v1/auth/login/', CCISLoginView.as_view(), name='token_obtain_pair'),
     path('api/v1/auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('api/v1/', include('core.urls')),
     
-]
+] 

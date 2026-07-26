@@ -1,16 +1,22 @@
 # authentication/permissions.py
 
-from rest_framework.permissions import BasePermission
+from rest_framework.permissions import SAFE_METHODS, BasePermission
 from authentication.models import User
 
 class IsChurchClerk(BasePermission):
     """Grants access strictly to the Church Clerk administrative role."""
     def has_permission(self, request, view):
-        return bool(
-            request.user and 
-            request.user.is_authenticated and 
-            request.user.designation == User.Designation.CLERK
-        )
+        if not request.user or not request.user.is_authenticated:
+            return False
+            
+        if request.method in SAFE_METHODS:
+            return True
+
+        return request.user.designation in [
+            User.Designation.CLERK, 
+            User.Designation.PASTOR
+        ]
+        
 
 class IsPastoralTeam(BasePermission):
     """Grants access to Pastors and Church Elders."""

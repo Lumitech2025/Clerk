@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Droplets, 
   Users, 
@@ -14,8 +14,12 @@ import {
   MapPin, 
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Send,
+  Loader2
 } from 'lucide-react';
+
+const API_BASE_URL = 'http://localhost:8000/api/baptisms/';
 
 // Reusable KPI Stat Card
 const KpiCard = ({ title, value, icon: Icon, valueColor, iconBg }) => {
@@ -33,81 +37,11 @@ const KpiCard = ({ title, value, icon: Icon, valueColor, iconBg }) => {
 };
 
 const BaptismsModule = ({ currentUserRole = 'Church Clerk' }) => {
-  // Sample Data
-  const [baptisms, setBaptisms] = useState([
-    {
-      id: 1,
-      fullName: "Samuel Kibet",
-      dob: "1998-05-14",
-      gender: "Male",
-      phone: "+254 712 345 678",
-      email: "samuel.k@gmail.com",
-      officiatingPastor: "Pr. David Omondi",
-      placeOfBaptism: "Newlife Main Sanctuary",
-      baptismDate: "2026-06-12",
-      status: "Certificate Collected"
-    },
-    {
-      id: 2,
-      fullName: "Grace Njeri Mwangi",
-      dob: "2002-11-20",
-      gender: "Female",
-      phone: "+254 722 987 654",
-      email: "gnjeri@yahoo.com",
-      officiatingPastor: "Pr. John Musyoka",
-      placeOfBaptism: "Kitsuru Pool",
-      baptismDate: "2026-07-01",
-      status: "Pending Collection"
-    },
-    {
-      id: 3,
-      fullName: "Brian Kiprono",
-      dob: "2000-02-10",
-      gender: "Male",
-      phone: "+254 700 112 233",
-      email: "b.kiprono@outlook.com",
-      officiatingPastor: "Pr. David Omondi",
-      placeOfBaptism: "Newlife Main Sanctuary",
-      baptismDate: "2026-07-15",
-      status: "Certificate Ready"
-    },
-    {
-      id: 4,
-      fullName: "Amani Faith Otieno",
-      dob: "2004-08-03",
-      gender: "Female",
-      phone: "+254 733 445 566",
-      email: "amani.faith@gmail.com",
-      officiatingPastor: "Pr. Josephat Wafula",
-      placeOfBaptism: "Riverside Camp",
-      baptismDate: "2026-07-20",
-      status: "Processing"
-    },
-    {
-      id: 5,
-      fullName: "Emanuel Mutua",
-      dob: "1995-03-12",
-      gender: "Male",
-      phone: "+254 711 223 344",
-      email: "e.mutua@gmail.com",
-      officiatingPastor: "Pr. David Omondi",
-      placeOfBaptism: "Newlife Main Sanctuary",
-      baptismDate: "2026-05-10",
-      status: "Certificate Collected"
-    },
-    {
-      id: 6,
-      fullName: "Esther Wambui",
-      dob: "2001-09-18",
-      gender: "Female",
-      phone: "+254 788 990 011",
-      email: "esther.w@gmail.com",
-      officiatingPastor: "Pr. John Musyoka",
-      placeOfBaptism: "Kitsuru Pool",
-      baptismDate: "2026-06-25",
-      status: "Certificate Ready"
-    }
-  ]);
+  const [baptisms, setBaptisms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [reminderSendingId, setReminderSendingId] = useState(null);
+  const [error, setError] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -130,52 +64,178 @@ const BaptismsModule = ({ currentUserRole = 'Church Clerk' }) => {
     status: 'Processing'
   });
 
+  // Helper: Retrieve bearer token (checks common storage keys)
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token') || localStorage.getItem('access') || localStorage.getItem('accessToken');
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+    };
+  };
+
   const canManageRecords = !currentUserRole || ['Church Clerk', 'Pastor'].includes(currentUserRole);
 
-  // Dynamic KPIs
+  // Fetch Baptisms from Backend
+  const fetchBaptisms = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(API_BASE_URL, {
+        headers: getAuthHeaders(),
+      });
+      
+      if (response.status === 401) {
+        throw new Error('Authentication required. Please log in again.');
+      }
+      if (!response.ok) throw new Error('Failed to fetch baptism records');
+      
+      const data = await response.json();
+      setBaptisms(Array.isArray(data) ? data : data.results || []);
+      setError(null);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchBaptisms();
+  }, []);
+
+  // Dynamic KPIs calculated from backend data
   const totalBaptisms = baptisms.length;
   const personsBaptised = baptisms.length;
   const certsCollected = baptisms.filter(b => b.status === 'Certificate Collected').length;
   const pendingCollection = baptisms.filter(b => b.status === 'Pending Collection' || b.status === 'Certificate Ready').length;
 
-  const handleStatusChange = (id, newStatus) => {
-    setBaptisms(prev => prev.map(item => item.id === id ? { ...item, status: newStatus } : item));
+  // Inline Status Change Handler (PATCH)
+  const handleStatusChange = async (id, newStatus) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}${id}/`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Failed to update status');
+      }
+
+      const updatedRecord = await response.json();
+      setBaptisms(prev => prev.map(item => item.id === id ? updatedRecord : item));
+    } catch (err) {
+      alert(`Error updating status: ${err.message}`);
+    }
   };
 
-  const handleFormSubmit = (e) => {
-    e.preventDefault();
-    const newRecord = {
-      id: Date.now(),
-      ...formData
+  // Send Reminder Handler (POST)
+  const handleSendReminder = async (record) => {
+    setReminderSendingId(record.id);
+    try {
+      const response = await fetch(`${API_BASE_URL}${record.id}/send-reminder/`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || 'Failed to send reminder notifications');
+      }
+
+      const result = await response.json();
+      alert(result.message || `Reminder successfully sent to ${record.fullName || record.full_name}!`);
+    } catch (err) {
+      alert(`Error sending reminder: ${err.message}`);
+    } finally {
+      setReminderSendingId(null);
+    }
+  };
+
+  // Form Submit Handler (POST)
+    // Form Submit Handler (POST)
+    const handleFormSubmit = async (e) => {
+      e.preventDefault();
+      setSubmitting(true);
+
+      // 1. Explicitly map frontend state (camelCase) to DRF expected fields (snake_case)
+      const payload = {
+        full_name: formData.fullName,
+        dob: formData.dob,
+        gender: formData.gender,
+        phone: formData.phone,
+        email: formData.email,
+        officiating_pastor: formData.officiatingPastor,
+        place_of_baptism: formData.placeOfBaptism,
+        baptism_date: formData.baptismDate,
+        status: formData.status,
+      };
+
+      // Log payload to browser console for debugging
+      console.log('Sending Payload:', payload);
+
+      try {
+        const response = await fetch(API_BASE_URL, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify(payload), // Send the JSON-stringified snake_case object
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.detail || JSON.stringify(errorData));
+        }
+
+        const newRecord = await response.json();
+        
+        // Update local state with newly saved record
+        setBaptisms([newRecord, ...baptisms]);
+        setIsModalOpen(false);
+        
+        // Reset form state
+        setFormData({
+          fullName: '',
+          dob: '',
+          gender: 'Male',
+          phone: '',
+          email: '',
+          officiatingPastor: '',
+          placeOfBaptism: 'Newlife Main Sanctuary',
+          baptismDate: '',
+          status: 'Processing'
+        });
+      } catch (err) {
+        alert(`Error creating record: ${err.message}`);
+      } finally {
+        setSubmitting(false);
+      }
     };
-    setBaptisms([newRecord, ...baptisms]);
-    setIsModalOpen(false);
-    setFormData({
-      fullName: '', dob: '', gender: 'Male', phone: '', email: '', officiatingPastor: '', placeOfBaptism: 'Newlife Main Sanctuary', baptismDate: '', status: 'Processing'
-    });
-    setCurrentPage(1);
-  };
 
-  const getStatusBadge = (status) => {
+  // Helper for status badge styling
+  const getStatusStyle = (status) => {
     switch (status) {
       case 'Certificate Collected':
-        return 'bg-emerald-50 text-emerald-700 border-emerald-200 font-bold';
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200 focus:ring-emerald-500';
       case 'Certificate Ready':
-        return 'bg-blue-50 text-blue-700 border-blue-200 font-bold';
+        return 'bg-blue-50 text-blue-700 border-blue-200 focus:ring-blue-500';
       case 'Pending Collection':
-        return 'bg-amber-50 text-amber-700 border-amber-200 font-bold';
+        return 'bg-amber-50 text-amber-700 border-amber-200 focus:ring-amber-500';
       case 'Processing':
-        return 'bg-purple-50 text-purple-700 border-purple-200 font-bold';
+        return 'bg-purple-50 text-purple-700 border-purple-200 focus:ring-purple-500';
       default:
-        return 'bg-slate-50 text-slate-700 border-slate-200 font-semibold';
+        return 'bg-slate-50 text-slate-700 border-slate-200 focus:ring-slate-400';
     }
   };
 
   // Filter Logic
   const filteredBaptisms = baptisms.filter(item => {
-    const matchesSearch = item.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          item.officiatingPastor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.phone.includes(searchTerm);
+    const name = item.fullName || item.full_name || '';
+    const pastor = item.officiatingPastor || item.officiating_pastor || '';
+    const phone = item.phone || '';
+    
+    const matchesSearch = name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          pastor.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          phone.includes(searchTerm);
     const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -280,7 +340,7 @@ const BaptismsModule = ({ currentUserRole = 'Church Clerk' }) => {
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Baptism Register</h2>
-            <p className="text-sm font-medium text-slate-500 mt-0.5">Manage candidate profiles and certificate statuses</p>
+            <p className="text-sm font-medium text-slate-500 mt-0.5">Manage candidate profiles, certificate pickup, and notifications</p>
           </div>
           <span className="text-xs font-bold bg-slate-100 text-slate-700 px-3.5 py-1.5 rounded-lg">
             {filteredBaptisms.length} Total Records
@@ -296,17 +356,32 @@ const BaptismsModule = ({ currentUserRole = 'Church Clerk' }) => {
                 <th className="py-4 px-6">Officiating Minister</th>
                 <th className="py-4 px-6">Date & Venue</th>
                 <th className="py-4 px-6">Status</th>
-                {canManageRecords && <th className="py-4 px-6 text-right">Action</th>}
+                <th className="py-4 px-6 text-center">Collection Reminder</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-base font-normal">
-              {currentRecords.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-12">
+                    <div className="flex items-center justify-center gap-2 text-slate-500 font-semibold">
+                      <Loader2 className="animate-spin text-emerald-600" size={24} />
+                      <span>Loading baptism records from database...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-10 text-rose-500 font-semibold">
+                    {error}
+                  </td>
+                </tr>
+              ) : currentRecords.length > 0 ? (
                 currentRecords.map((record) => (
                   <tr key={record.id} className="hover:bg-slate-50/70 transition">
                     
                     {/* Candidate */}
                     <td className="py-4 px-6">
-                      <div className="font-bold text-slate-900 text-base">{record.fullName}</div>
+                      <div className="font-bold text-slate-900 text-base">{record.fullName || record.full_name}</div>
                       <div className="text-xs font-semibold text-slate-500 mt-0.5">
                         {record.gender} • DOB: {record.dob}
                       </div>
@@ -325,48 +400,71 @@ const BaptismsModule = ({ currentUserRole = 'Church Clerk' }) => {
                     {/* Officiating Pastor */}
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-2 font-bold text-slate-800 text-sm">
-                        <UserCheck size={16} className="text-emerald-600" /> {record.officiatingPastor}
+                        <UserCheck size={16} className="text-emerald-600" /> {record.officiatingPastor || record.officiating_pastor}
                       </div>
                     </td>
 
                     {/* Location & Date */}
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-2 font-semibold text-slate-800 text-sm">
-                        <Calendar size={14} className="text-slate-400" /> {record.baptismDate}
+                        <Calendar size={14} className="text-slate-400" /> {record.baptismDate || record.baptism_date}
                       </div>
                       <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold mt-1">
-                        <MapPin size={14} className="text-slate-400" /> {record.placeOfBaptism}
+                        <MapPin size={14} className="text-slate-400" /> {record.placeOfBaptism || record.place_of_baptism}
                       </div>
                     </td>
 
-                    {/* Status Badge */}
+                    {/* INLINE EDITABLE STATUS SELECTOR */}
                     <td className="py-4 px-6">
-                      <span className={`inline-flex items-center px-3.5 py-1 rounded-full text-xs border ${getStatusBadge(record.status)}`}>
-                        {record.status}
-                      </span>
-                    </td>
-
-                    {/* Status Action */}
-                    {canManageRecords && (
-                      <td className="py-4 px-6 text-right">
+                      {canManageRecords ? (
                         <select
                           value={record.status}
                           onChange={(e) => handleStatusChange(record.id, e.target.value)}
-                          className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 py-2 px-3 rounded-lg border border-slate-300 focus:outline-none cursor-pointer"
+                          className={`text-xs font-extrabold px-3 py-1.5 rounded-full border focus:outline-none cursor-pointer transition ${getStatusStyle(record.status)}`}
                         >
                           <option value="Processing">Processing</option>
                           <option value="Certificate Ready">Certificate Ready</option>
                           <option value="Pending Collection">Pending Collection</option>
                           <option value="Certificate Collected">Certificate Collected</option>
                         </select>
-                      </td>
-                    )}
+                      ) : (
+                        <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-extrabold border ${getStatusStyle(record.status)}`}>
+                          {record.status}
+                        </span>
+                      )}
+                    </td>
+
+                    {/* REMINDER COLUMN */}
+                    <td className="py-4 px-6 text-center">
+                      {['Pending Collection', 'Certificate Ready'].includes(record.status) ? (
+                        <button
+                          onClick={() => handleSendReminder(record)}
+                          disabled={reminderSendingId === record.id}
+                          className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-300 text-white font-extrabold text-xs px-3.5 py-1.5 rounded-lg shadow-xs transition cursor-pointer"
+                        >
+                          {reminderSendingId === record.id ? (
+                            <Loader2 className="animate-spin" size={12} />
+                          ) : (
+                            <Send size={12} />
+                          )}
+                          <span>{reminderSendingId === record.id ? 'Sending...' : 'Send Reminder'}</span>
+                        </button>
+                      ) : record.status === 'Certificate Collected' ? (
+                        <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-100 inline-block">
+                          Collected
+                        </span>
+                      ) : (
+                        <span className="text-xs font-semibold text-slate-400 italic">
+                          N/A
+                        </span>
+                      )}
+                    </td>
 
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={canManageRecords ? 6 : 5} className="text-center py-10 text-slate-500 font-semibold text-base">
+                  <td colSpan={6} className="text-center py-10 text-slate-500 font-semibold text-base">
                     No baptism records found.
                   </td>
                 </tr>
@@ -558,9 +656,11 @@ const BaptismsModule = ({ currentUserRole = 'Church Clerk' }) => {
                 </button>
                 <button 
                   type="submit" 
-                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-xs transition cursor-pointer"
+                  disabled={submitting}
+                  className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-xs transition cursor-pointer disabled:bg-emerald-400"
                 >
-                  Save Record
+                  {submitting && <Loader2 className="animate-spin" size={16} />}
+                  <span>{submitting ? 'Saving...' : 'Save Record'}</span>
                 </button>
               </div>
 

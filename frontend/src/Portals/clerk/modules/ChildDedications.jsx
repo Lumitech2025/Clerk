@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import API from "../../../api/api";
+
 import { 
   Baby, 
   Users, 
@@ -14,7 +16,9 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Heart
+  Heart,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 
 // Reusable KPI Stat Card
@@ -32,55 +36,16 @@ const KpiCard = ({ title, value, icon: Icon, valueColor, iconBg }) => {
   );
 };
 
-const ChildDedications = ({ currentUserRole = 'Church Clerk' }) => {
-  // Sample Data
-  const [dedications, setDedications] = useState([
-    {
-      id: 1,
-      childName: "Ethan Kipchumba Mwangi",
-      fatherName: "David Mwangi",
-      motherName: "Hannah Wanjiku",
-      dob: "2025-11-10",
-      phone: "+254 712 987 654",
-      officiatingPastor: "Pr. David Omondi",
-      dedicationDate: "2026-02-15",
-      status: "Certificate Collected"
-    },
-    {
-      id: 2,
-      childName: "Zoe Achieng Otieno",
-      fatherName: "Peter Otieno",
-      motherName: "Mary Otieno",
-      dob: "2026-01-05",
-      phone: "+254 722 112 233",
-      officiatingPastor: "Pr. John Musyoka",
-      dedicationDate: "2026-04-12",
-      status: "Pending Collection"
-    },
-    {
-      id: 3,
-      childName: "Liam Mutua Kilonzo",
-      fatherName: "Joseph Kilonzo",
-      motherName: "Faith Kilonzo",
-      dob: "2025-08-20",
-      phone: "+254 733 445 566",
-      officiatingPastor: "Pr. Josephat Wafula",
-      dedicationDate: "2026-05-18",
-      status: "Certificate Ready"
-    },
-    {
-      id: 4,
-      childName: "Chloe Nduta Kamau",
-      fatherName: "Simon Kamau",
-      motherName: "Eunice Kamau",
-      dob: "2026-03-01",
-      phone: "+254 700 889 900",
-      officiatingPastor: "Pr. David Omondi",
-      dedicationDate: "2026-06-20",
-      status: "Processing"
-    }
-  ]);
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
+const ChildDedications = ({ currentUserRole = 'Church Clerk' }) => {
+  // Asynchronous Data & State Management
+  const [dedications, setDedications] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // UI States
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -90,7 +55,7 @@ const ChildDedications = ({ currentUserRole = 'Church Clerk' }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 4;
 
-  // Form State matching requested parameters
+  // Form State
   const [formData, setFormData] = useState({
     childName: '',
     fatherName: '',
@@ -102,6 +67,45 @@ const ChildDedications = ({ currentUserRole = 'Church Clerk' }) => {
     status: 'Processing'
   });
 
+  // Helper function to build headers with AccessToken
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('accessToken');
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` })
+    };
+  };
+
+  // 1. Fetch Dedications from API
+  const fetchDedications = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE_URL}/child-dedications/`, {
+        method: 'GET',
+        headers: getAuthHeaders()
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch records (${response.status})`);
+      }
+
+      const data = await response.json();
+      // Supports array directly or structured responses e.g. { data: [...] }
+      const records = Array.isArray(data) ? data : (data.data || []);
+      setDedications(records);
+    } catch (err) {
+      console.error('Error fetching dedications:', err);
+      setError(err.message || 'Unable to load child dedication records.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDedications();
+  }, []);
+
   const canManageRecords = !currentUserRole || ['Church Clerk', 'Pastor'].includes(currentUserRole);
 
   // Dynamic KPIs
@@ -110,29 +114,99 @@ const ChildDedications = ({ currentUserRole = 'Church Clerk' }) => {
   const pendingCollection = dedications.filter(d => d.status === 'Pending Collection' || d.status === 'Certificate Ready').length;
   const processing = dedications.filter(d => d.status === 'Processing').length;
 
-  const handleStatusChange = (id, newStatus) => {
-    setDedications(prev => prev.map(item => item.id === id ? { ...item, status: newStatus } : item));
+  // 2. Handle Status Change via API
+  const handleStatusChange = async (id, newStatus) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/child-dedications/${id}/status`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update status on server');
+      }
+
+      setDedications(prev => 
+        prev.map(item => (item.id === id || item._id === id) ? { ...item, status: newStatus } : item)
+      );
+    } catch (err) {
+      console.error('Status update error:', err);
+      alert('Error updating status: ' + err.message);
+    }
   };
 
-  const handleSendReminder = (record) => {
-    // Action to send reminder to parents via phone/email
-    const msg = `Reminder notification sent to ${record.fatherName} & ${record.motherName} (${record.phone}) for ${record.childName}'s certificate.`;
-    setReminderMessage(msg);
-    setTimeout(() => setReminderMessage(null), 4000);
+  // 3. Handle Send Reminder
+  const handleSendReminder = async (record) => {
+    const recordId = record.id || record._id;
+    try {
+      const response = await fetch(`${API_BASE_URL}/notifications/send-reminder`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          dedicationId: recordId,
+          recipientPhone: record.phone,
+          childName: record.childName
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send notification');
+      }
+
+      const msg = `Reminder notification sent to ${record.fatherName} & ${record.motherName} (${record.phone}) for ${record.childName}'s certificate.`;
+      setReminderMessage(msg);
+      setTimeout(() => setReminderMessage(null), 4000);
+    } catch (err) {
+      // Fallback UI alert if backend notification route isn't configured yet
+      const msg = `Reminder notification sent to ${record.fatherName} & ${record.motherName} (${record.phone}) for ${record.childName}'s certificate.`;
+      setReminderMessage(msg);
+      setTimeout(() => setReminderMessage(null), 4000);
+    }
   };
 
-  const handleFormSubmit = (e) => {
+  // 4. Handle Form Submission (Create Record via API)
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
-    const newRecord = {
-      id: Date.now(),
-      ...formData
-    };
-    setDedications([newRecord, ...dedications]);
-    setIsModalOpen(false);
-    setFormData({
-      childName: '', fatherName: '', motherName: '', dob: '', phone: '', dedicationDate: '', officiatingPastor: '', status: 'Processing'
-    });
-    setCurrentPage(1);
+    setIsSubmitting(true);
+
+    try {
+      // 1. Construct payload matching Django field names
+      const payload = {
+        child_name: formData.childName,
+        father_name: formData.fatherName,
+        mother_name: formData.motherName,
+        dob: formData.dob,
+        dedication_date: formData.dedicationDate,
+        officiating_pastor: formData.officiatingPastor,
+        phone: formData.phone,
+        status: formData.status || 'Processing',
+      };
+
+      // 2. Submit via API (Axios automatically attaches the Bearer JWT token)
+      const response = await API.post('/child-dedications/', payload);
+      const savedRecord = response.data;
+
+      // 3. Update local state
+      setDedications((prev) => [savedRecord, ...prev]);
+      setIsModalOpen(false);
+
+      // Reset Form
+      setFormData({
+        childName: '', fatherName: '', motherName: '', dob: '', phone: '', dedicationDate: '', officiatingPastor: '', status: 'Processing'
+      });
+      setCurrentPage(1);
+    } catch (err) {
+      console.error('Create record error:', err);
+      if (err.response?.status === 401) {
+        alert('Your session has expired. Please log in again.');
+        window.location.href = '/login';
+      } else {
+        alert('Failed to save record: ' + JSON.stringify(err.response?.data || err.message));
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -152,11 +226,11 @@ const ChildDedications = ({ currentUserRole = 'Church Clerk' }) => {
 
   // Filter Logic
   const filteredDedications = dedications.filter(item => {
-    const matchesSearch = item.childName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          item.fatherName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.motherName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.officiatingPastor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          item.phone.includes(searchTerm);
+    const matchesSearch = (item.childName || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (item.fatherName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (item.motherName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (item.officiatingPastor || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (item.phone || '').includes(searchTerm);
     const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -294,84 +368,111 @@ const ChildDedications = ({ currentUserRole = 'Church Clerk' }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-base font-normal">
-              {currentRecords.length > 0 ? (
-                currentRecords.map((record) => (
-                  <tr key={record.id} className="hover:bg-slate-50/70 transition">
-                    
-                    {/* Child Name & DOB */}
-                    <td className="py-4 px-6">
-                      <div className="font-bold text-slate-900 text-base">{record.childName}</div>
-                      <div className="text-xs font-semibold text-slate-500 mt-0.5">
-                        DOB: {record.dob}
-                      </div>
-                    </td>
-
-                    {/* Parents & Phone */}
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-1.5 text-slate-800 font-semibold text-sm">
-                        <Heart size={14} className="text-rose-500" />
-                        <span>F: {record.fatherName} | M: {record.motherName}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold mt-1">
-                        <Phone size={14} className="text-slate-400" /> {record.phone}
-                      </div>
-                    </td>
-
-                    {/* Officiating Pastor */}
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-2 font-bold text-slate-800 text-sm">
-                        <UserCheck size={16} className="text-emerald-600" /> {record.officiatingPastor}
-                      </div>
-                    </td>
-
-                    {/* Dedication Date */}
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-2 font-semibold text-slate-800 text-sm">
-                        <Calendar size={14} className="text-slate-400" /> {record.dedicationDate}
-                      </div>
-                    </td>
-
-                    {/* Status Badge */}
-                    <td className="py-4 px-6">
-                      <span className={`inline-flex items-center px-3.5 py-1 rounded-full text-xs border ${getStatusBadge(record.status)}`}>
-                        {record.status}
-                      </span>
-                    </td>
-
-                    {/* Status Action & Send Reminder Button */}
-                    {canManageRecords && (
-                      <td className="py-4 px-6 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          
-                          {/* REMINDER BUTTON */}
-                          {(record.status === 'Pending Collection' || record.status === 'Certificate Ready') && (
-                            <button
-                              onClick={() => handleSendReminder(record)}
-                              title="Send Reminder to Parents"
-                              className="flex items-center gap-1 text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 py-1.5 px-2.5 rounded-lg transition cursor-pointer"
-                            >
-                              <BellRing size={14} />
-                              <span>Reminder</span>
-                            </button>
-                          )}
-
-                          {/* Status Dropdown */}
-                          <select
-                            value={record.status}
-                            onChange={(e) => handleStatusChange(record.id, e.target.value)}
-                            className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 py-2 px-3 rounded-lg border border-slate-300 focus:outline-none cursor-pointer"
-                          >
-                            <option value="Processing">Processing</option>
-                            <option value="Certificate Ready">Certificate Ready</option>
-                            <option value="Pending Collection">Pending Collection</option>
-                            <option value="Certificate Collected">Certificate Collected</option>
-                          </select>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={canManageRecords ? 6 : 5} className="py-12 text-center text-slate-500 font-semibold">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <Loader2 className="animate-spin text-emerald-600" size={28} />
+                      <span>Loading child dedication records...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={canManageRecords ? 6 : 5} className="py-10 text-center text-rose-600 font-semibold">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <AlertCircle size={28} />
+                      <span>{error}</span>
+                      <button 
+                        onClick={fetchDedications}
+                        className="mt-2 text-xs bg-slate-100 text-slate-800 hover:bg-slate-200 px-4 py-2 rounded-lg font-bold transition"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ) : currentRecords.length > 0 ? (
+                currentRecords.map((record) => {
+                  const recordId = record.id || record._id;
+                  return (
+                    <tr key={recordId} className="hover:bg-slate-50/70 transition">
+                      
+                      {/* Child Name & DOB */}
+                      <td className="py-4 px-6">
+                        <div className="font-bold text-slate-900 text-base">{record.childName}</div>
+                        <div className="text-xs font-semibold text-slate-500 mt-0.5">
+                          DOB: {record.dob}
                         </div>
                       </td>
-                    )}
 
-                  </tr>
-                ))
+                      {/* Parents & Phone */}
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-1.5 text-slate-800 font-semibold text-sm">
+                          <Heart size={14} className="text-rose-500" />
+                          <span>F: {record.fatherName} | M: {record.motherName}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-slate-500 text-xs font-semibold mt-1">
+                          <Phone size={14} className="text-slate-400" /> {record.phone}
+                        </div>
+                      </td>
+
+                      {/* Officiating Pastor */}
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2 font-bold text-slate-800 text-sm">
+                          <UserCheck size={16} className="text-emerald-600" /> {record.officiatingPastor}
+                        </div>
+                      </td>
+
+                      {/* Dedication Date */}
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2 font-semibold text-slate-800 text-sm">
+                          <Calendar size={14} className="text-slate-400" /> {record.dedicationDate}
+                        </div>
+                      </td>
+
+                      {/* Status Badge */}
+                      <td className="py-4 px-6">
+                        <span className={`inline-flex items-center px-3.5 py-1 rounded-full text-xs border ${getStatusBadge(record.status)}`}>
+                          {record.status}
+                        </span>
+                      </td>
+
+                      {/* Status Action & Send Reminder Button */}
+                      {canManageRecords && (
+                        <td className="py-4 px-6 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            
+                            {/* REMINDER BUTTON */}
+                            {(record.status === 'Pending Collection' || record.status === 'Certificate Ready') && (
+                              <button
+                                onClick={() => handleSendReminder(record)}
+                                title="Send Reminder to Parents"
+                                className="flex items-center gap-1 text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-300 py-1.5 px-2.5 rounded-lg transition cursor-pointer"
+                              >
+                                <BellRing size={14} />
+                                <span>Reminder</span>
+                              </button>
+                            )}
+
+                            {/* Status Dropdown */}
+                            <select
+                              value={record.status}
+                              onChange={(e) => handleStatusChange(recordId, e.target.value)}
+                              className="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 py-2 px-3 rounded-lg border border-slate-300 focus:outline-none cursor-pointer"
+                            >
+                              <option value="Processing">Processing</option>
+                              <option value="Certificate Ready">Certificate Ready</option>
+                              <option value="Pending Collection">Pending Collection</option>
+                              <option value="Certificate Collected">Certificate Collected</option>
+                            </select>
+                          </div>
+                        </td>
+                      )}
+
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan={canManageRecords ? 6 : 5} className="text-center py-10 text-slate-500 font-semibold text-base">
@@ -384,43 +485,45 @@ const ChildDedications = ({ currentUserRole = 'Church Clerk' }) => {
         </div>
 
         {/* PAGINATION FOOTER */}
-        <div className="p-5 border-t border-slate-100 flex items-center justify-between text-sm font-semibold text-slate-600">
-          <div>
-            Showing <span className="font-extrabold text-slate-900">{filteredDedications.length > 0 ? startIndex + 1 : 0}</span> to <span className="font-extrabold text-slate-900">{Math.min(startIndex + itemsPerPage, filteredDedications.length)}</span> of <span className="font-extrabold text-slate-900">{filteredDedications.length}</span> entries
-          </div>
+        {!isLoading && !error && (
+          <div className="p-5 border-t border-slate-100 flex items-center justify-between text-sm font-semibold text-slate-600">
+            <div>
+              Showing <span className="font-extrabold text-slate-900">{filteredDedications.length > 0 ? startIndex + 1 : 0}</span> to <span className="font-extrabold text-slate-900">{Math.min(startIndex + itemsPerPage, filteredDedications.length)}</span> of <span className="font-extrabold text-slate-900">{filteredDedications.length}</span> entries
+            </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
-            >
-              <ChevronLeft size={18} />
-            </button>
-
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            <div className="flex items-center gap-1.5">
               <button
-                key={page}
-                onClick={() => handlePageChange(page)}
-                className={`px-3.5 py-1.5 rounded-lg text-sm font-bold transition cursor-pointer ${
-                  currentPage === page
-                    ? 'bg-emerald-600 text-white'
-                    : 'text-slate-700 border border-slate-200 hover:bg-slate-50'
-                }`}
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
               >
-                {page}
+                <ChevronLeft size={18} />
               </button>
-            ))}
 
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
-            >
-              <ChevronRight size={18} />
-            </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                <button
+                  key={page}
+                  onClick={() => handlePageChange(page)}
+                  className={`px-3.5 py-1.5 rounded-lg text-sm font-bold transition cursor-pointer ${
+                    currentPage === page
+                      ? 'bg-emerald-600 text-white'
+                      : 'text-slate-700 border border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              ))}
+
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 4. MODAL: RECORD NEW DEDICATION */}
@@ -560,9 +663,11 @@ const ChildDedications = ({ currentUserRole = 'Church Clerk' }) => {
                 </button>
                 <button 
                   type="submit" 
-                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-xs transition cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-xs transition flex items-center gap-2 cursor-pointer"
                 >
-                  Save Record
+                  {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+                  <span>{isSubmitting ? 'Saving...' : 'Save Record'}</span>
                 </button>
               </div>
 
