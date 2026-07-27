@@ -19,7 +19,13 @@ from .models import MemberRecord, BaptismRecord, ChildDedication
 from .serializers import DashboardAnalyticsSerializer
 
 
-from authentication.permissions import IsChurchClerk, IsPastoralTeam
+from authentication.permissions import (
+    IsChurchClerk,
+    IsLeadershipReadOnlyOrClerkWrite,
+    IsBoardMemberOrReadOnly,
+    IsCommunicationOrClerk,
+    get_user_role
+)
 
 from .models import WeddingNotification, BaptismRecord, ChildDedication, Department, DepartmentalReport, Bulletin, Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, MemberRecord
 from .serializers import WeddingNotificationSerializer, BaptismSerializer, ChildDedicationSerializer, DepartmentSerializer, DepartmentalReportSerializer,  BulletinSerializer, MeetingSerializer, MeetingAttendanceSerializer, AttendanceSheetUploadSerializer, AbsenceApologySerializer, MemberRecordSerializer
@@ -41,7 +47,7 @@ class BaptismViewSet(viewsets.ModelViewSet):
     serializer_class = BaptismSerializer
     
     # 1. Secure viewset with authentication and RBAC permissions
-    permission_classes = [IsAuthenticated, IsPastoralTeam]
+    permission_classes = [IsAuthenticated, IsLeadershipReadOnlyOrClerkWrite]
 
     def perform_create(self, serializer):
         """
@@ -315,10 +321,14 @@ class IsClerkOrPastorOrElder(permissions.BasePermission):
         return False
 
 class MemberRecordViewSet(viewsets.ModelViewSet):
+    """
+    Central Membership Roll.
+    - Write operations restricted to Clerk.
+    - Read operations allowed for Clerk, Pastors, and Elders.
+    """
     queryset = MemberRecord.objects.all()
     serializer_class = MemberRecordSerializer
-    pagination_class = StandardResultsSetPagination
-    permission_classes = [IsClerkOrPastorOrElder]
+    permission_classes = [IsLeadershipReadOnlyOrClerkWrite]
     
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['year_joined', 'joining_method', 'gender', 'transfer_status', 'is_active']
@@ -403,19 +413,15 @@ class IsChurchLeaderOrClerk(permissions.BasePermission):
         return user_role in allowed_roles or request.user.groups.filter(name__in=allowed_roles).exists()
 
 class WeddingNotificationViewSet(viewsets.ModelViewSet):
-    queryset = WeddingNotification.objects.all()
     serializer_class = WeddingNotificationSerializer
     parser_classes = (MultiPartParser, FormParser, JSONParser)
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            # Members can view, leaders can view all
-            permission_classes = [permissions.IsAuthenticated]
-        elif self.action in ['create']:
-            # Members and Leaders can submit forms
+        if self.action in ['list', 'retrieve', 'create']:
+            # Members and Leaders can view lists, single records, and submit forms
             permission_classes = [permissions.IsAuthenticated]
         else:
-            # Update/Delete restricted to Clerks, Pastors, Elders
+            # Updating (PUT/PATCH) or Deleting is restricted to Clerks, Pastors, and Elders
             permission_classes = [IsChurchLeaderOrClerk]
         return [permission() for permission in permission_classes]
 
@@ -424,13 +430,27 @@ class WeddingNotificationViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return WeddingNotification.objects.none()
 
-        user_role = getattr(user, 'role', '').upper()
-        leader_roles = ['CLERK', 'PASTOR', 'ELDER']
+        # Sanitize and normalize user role
+        user_role = str(getattr(user, 'role', '')).upper().strip()
+        
+        # Define allowed leadership role identifiers
+        leader_roles = ['CLERK', 'CHURCH_CLERK', 'PASTOR', 'ELDER', 'ADMIN']
 
-        # Leaders see all records; Members see only their submitted notifications
-        if user.is_superuser or user_role in leader_roles or user.groups.filter(name__in=leader_roles).exists():
-            return WeddingNotification.objects.all()
-        return WeddingNotification.objects.filter(submitted_by=user)
+        # Check if user is superuser, has a leadership role field, or belongs to a leadership auth group
+        is_leader = (
+            user.is_superuser 
+            or user_role in leader_roles 
+            or user.groups.filter(name__iregex=r'^(clerk|church clerk|pastor|elder|admin)$').exists()
+        )
+
+        # Base queryset with query optimization
+        base_qs = WeddingNotification.objects.select_related('submitted_by').all()
+
+        if is_leader:
+            return base_qs.order_by('-id')
+
+        # Regular members see notifications they submitted
+        return base_qs.filter(submitted_by=user).order_by('-id')
 
     def perform_create(self, serializer):
         if self.request.user.is_authenticated:

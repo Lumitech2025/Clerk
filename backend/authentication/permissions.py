@@ -1,37 +1,74 @@
-# authentication/permissions.py
+from rest_framework import permissions
 
-from rest_framework.permissions import SAFE_METHODS, BasePermission
-from authentication.models import User
+def get_user_role(user) -> str:
+    """Safely extracts and normalizes user role string."""
+    if not user or not user.is_authenticated:
+        return ""
+    role = getattr(user, 'role', '') or getattr(user, 'designation', '')
+    return str(role).strip().lower()
 
-class IsChurchClerk(BasePermission):
-    """Grants access strictly to the Church Clerk administrative role."""
+
+class IsChurchClerk(permissions.BasePermission):
+    """Full CRUD access granted strictly to Church Clerks and Superusers."""
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
-            
-        if request.method in SAFE_METHODS:
+        if request.user.is_superuser:
+            return True
+        return get_user_role(request.user) == 'clerk'
+
+
+class IsLeadershipReadOnlyOrClerkWrite(permissions.BasePermission):
+    """
+    - Write (POST, PUT, PATCH, DELETE): Strictly Clerk / Superuser.
+    - Read (GET, HEAD, OPTIONS): Pastoral Team (Pastors, Elders) and Clerk.
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
             return True
 
-        return request.user.designation in [
-            User.Designation.CLERK, 
-            User.Designation.PASTOR
-        ]
+        role = get_user_role(request.user)
+
+        if request.method in permissions.SAFE_METHODS:
+            return role in ['clerk', 'pastor', 'elder']
+
+        return role == 'clerk'
+
+
+class IsBoardMemberOrReadOnly(permissions.BasePermission):
+    """
+    Access policy for Departmental Reports & Meetings:
+    - Write: Departmental Leaders, Communication, Clerk.
+    - Read: Board Members (Clerk, Pastors, Elders, Department Leaders).
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+
+        role = get_user_role(request.user)
+        board_roles = ['clerk', 'pastor', 'elder', 'department_leader', 'communication']
+
+        if request.method in permissions.SAFE_METHODS:
+            return role in board_roles
+
+        return role in ['clerk', 'department_leader', 'communication']
+
+
+class IsCommunicationOrClerk(permissions.BasePermission):
+    """Access for managing Bulletins and Public Church Announcements."""
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+
+        role = get_user_role(request.user)
         
-
-class IsPastoralTeam(BasePermission):
-    """Grants access to Pastors and Church Elders."""
-    def has_permission(self, request, view):
-        return bool(
-            request.user and 
-            request.user.is_authenticated and 
-            request.user.designation in [User.Designation.PASTOR, User.Designation.ELDER, User.Designation.CLERK]
-        )
-
-class IsBoardMember(BasePermission):
-    """Grants access to Board Members (Clerk, Pastors, Elders, Department Leaders)."""
-    def has_permission(self, request, view):
-        return bool(
-            request.user and 
-            request.user.is_authenticated and 
-            request.user.is_administrative_user
-        )
+        if request.method in permissions.SAFE_METHODS:
+            return True # Bulletins are readable by all authenticated members
+        
+        return role in ['clerk', 'communication']
