@@ -10,6 +10,7 @@ from .models import (
     MeetingAttendance,
     AttendanceSheetUpload,
     AbsenceApology,
+    WeddingNotification
 )
 
 
@@ -253,6 +254,87 @@ class AbsenceApologyAdmin(admin.ModelAdmin):
 class AttendanceSheetUploadAdmin(admin.ModelAdmin):
     list_display = ('meeting', 'uploaded_file', 'processed', 'uploaded_at')
     list_filter = ('processed', 'uploaded_at')
+
+
+@admin.register(WeddingNotification)
+class WeddingNotificationAdmin(admin.ModelAdmin):
+    list_display = (
+        'applicant_name', 
+        'spouse_name', 
+        'wedding_date', 
+        'status', 
+        'officiating_pastor', 
+        'officiating_elder',
+        'has_applicant_parent_consent',
+        'has_spouse_parent_consent'
+    )
+    list_filter = ('status', 'wedding_date', 'has_applicant_parent_consent', 'has_spouse_parent_consent')
+    search_fields = (
+        'applicant_name', 
+        'spouse_name', 
+        'applicant_phone', 
+        'spouse_phone', 
+        'officiating_pastor', 
+        'officiating_elder'
+    )
+    date_hierarchy = 'wedding_date'
+    
+    fieldsets = (
+        ('Status & Registration', {
+            'fields': ('status', 'submitted_by', 'notice_received_by', 'notice_received_date')
+        }),
+        ('Groom / Applicant Particulars', {
+            'fields': (
+                'applicant_name', 
+                'applicant_membership', 
+                'applicant_dob', 
+                'applicant_occupation', 
+                'applicant_phone', 
+                'applicant_address',
+                'applicant_signature_date'
+            )
+        }),
+        ('Bride / Spouse Particulars', {
+            'fields': (
+                'spouse_name', 
+                'spouse_church', 
+                'spouse_conference', 
+                'spouse_membership_no', 
+                'spouse_dob', 
+                'spouse_occupation', 
+                'spouse_phone', 
+                'spouse_address',
+                'spouse_signature_date'
+            )
+        }),
+        ('Wedding & Officiating Details', {
+            'fields': (
+                'wedding_date', 
+                'wedding_place', 
+                'reception_venue', 
+                'officiating_pastor', 
+                'counseling_pastor', 
+                'officiating_elder'
+            )
+        }),
+        ('Supporting Documents', {
+            'fields': (
+                'groom_consent_file', 
+                'has_applicant_parent_consent',
+                'bride_consent_file', 
+                'has_spouse_parent_consent',
+                'recommendation_letter_file', 
+                'has_recommendation_letter'
+            )
+        }),
+        ('Official Board Action', {
+            'fields': (
+                'board_action_date', 
+                'board_recommendations', 
+                'board_chairman_signature'
+            )
+        }),
+    )
 
 try:
     admin.site.unregister(MeetingAttendance)

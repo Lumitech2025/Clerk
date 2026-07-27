@@ -302,6 +302,7 @@ class AbsenceApology(models.Model):
 
 
 
+
 class MethodOfEntry(models.TextChoices):
     BAPTISM = 'Baptism', 'Baptism'
     TRANSFER = 'Transfer', 'Transfer'
@@ -388,3 +389,81 @@ class MemberRecord(models.Model):
 
     def __str__(self):
         return f"{self.full_name} ({self.joining_method})"
+
+
+
+class WeddingNotification(models.Model):
+    STATUS_CHOICES = [
+        ('PENDING', 'Pending'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+        ('COMPLETED', 'Completed'),
+    ]
+
+    submitted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='wedding_applications'
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
+    notification_date = models.DateField(auto_now_add=True)
+
+    # 1. Applicant (Groom/Bride)
+    applicant_name = models.CharField(max_length=255)
+    applicant_membership = models.CharField(max_length=255, default='NEWLIFE SDA CHURCH, 5TH AVENUE')
+    applicant_dob = models.DateField(null=True, blank=True)
+    applicant_occupation = models.CharField(max_length=100, blank=True, null=True)
+    applicant_phone = models.CharField(max_length=20)
+    applicant_address = models.CharField(max_length=255, blank=True, null=True)
+    applicant_signature_date = models.DateField(null=True, blank=True)
+
+    # 2. Spouse Particulars
+    spouse_name = models.CharField(max_length=255)
+    spouse_church = models.CharField(max_length=255)
+    spouse_conference = models.CharField(max_length=255, blank=True, null=True)
+    spouse_membership_no = models.CharField(max_length=50, default='N/A', blank=True, null=True)
+    spouse_dob = models.DateField(null=True, blank=True)
+    spouse_occupation = models.CharField(max_length=100, blank=True, null=True)
+    spouse_phone = models.CharField(max_length=20)
+    spouse_address = models.CharField(max_length=255, blank=True, null=True)
+    spouse_signature_date = models.DateField(null=True, blank=True)
+
+    # 3. Event & Officiating Details
+    wedding_date = models.DateField()
+    wedding_place = models.CharField(max_length=255, default='NEWLIFE SDA CHURCH')
+    officiating_pastor = models.CharField(max_length=255)
+    counseling_pastor = models.CharField(max_length=255, blank=True, null=True)
+    officiating_elder = models.CharField(max_length=255)
+    reception_venue = models.CharField(max_length=255, blank=True, null=True)
+
+    # 4. Clerk Desk Office Receipt
+    notice_received_by = models.CharField(max_length=255, blank=True, null=True)
+    notice_received_date = models.DateField(null=True, blank=True)
+
+    # 5. File Attachments
+    groom_consent_file = models.FileField(upload_to='wedding_docs/groom_consents/', blank=True, null=True)
+    bride_consent_file = models.FileField(upload_to='wedding_docs/bride_consents/', blank=True, null=True)
+    recommendation_letter_file = models.FileField(upload_to='wedding_docs/recommendations/', blank=True, null=True)
+
+    # Document Check Flags
+    has_applicant_parent_consent = models.BooleanField(default=False)
+    has_spouse_parent_consent = models.BooleanField(default=False)
+    has_recommendation_letter = models.BooleanField(default=False)
+
+    # 6. Church Board Action
+    board_action_date = models.DateField(null=True, blank=True)
+    board_recommendations = models.TextField(blank=True, null=True)
+    board_chairman_signature = models.CharField(max_length=255, blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-wedding_date']
+        verbose_name = "Wedding Notification"
+        verbose_name_plural = "Wedding Notifications"
+
+    def __str__(self):
+        return f"{self.applicant_name} & {self.spouse_name} - {self.wedding_date}"

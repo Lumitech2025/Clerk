@@ -1,6 +1,6 @@
 from rest_framework import serializers
 import json
-from .models import BaptismRecord, ChildDedication,Department, DepartmentalReport, Bulletin,Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, Department, MemberRecord
+from .models import WeddingNotification, BaptismRecord, ChildDedication,Department, DepartmentalReport, Bulletin,Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, Department, MemberRecord
 
 class BaptismSerializer(serializers.ModelSerializer):
     class Meta:
@@ -240,3 +240,25 @@ class DashboardAnalyticsSerializer(serializers.Serializer):
     # Chart Data Sets
     membership_transfers = serializers.DictField()
     baptism_trends = serializers.DictField()
+
+
+class WeddingNotificationSerializer(serializers.ModelSerializer):
+    groom_consent_file = serializers.FileField(required=False, allow_null=True)
+    bride_consent_file = serializers.FileField(required=False, allow_null=True)
+    recommendation_letter_file = serializers.FileField(required=False, allow_null=True)
+
+    class Meta:
+        model = WeddingNotification
+        fields = '__all__'
+        read_only_fields = ('created_at', 'updated_at')
+
+    def create(self, validated_data):
+        # Automatically update check flags if files are uploaded
+        if validated_data.get('groom_consent_file'):
+            validated_data['has_applicant_parent_consent'] = True
+        if validated_data.get('bride_consent_file'):
+            validated_data['has_spouse_parent_consent'] = True
+        if validated_data.get('recommendation_letter_file'):
+            validated_data['has_recommendation_letter'] = True
+
+        return super().create(validated_data)

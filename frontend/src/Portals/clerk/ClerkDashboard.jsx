@@ -2,12 +2,14 @@ import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { AuthContext } from '../../context/AuthContext';
 import API from '../../api/api';
 import ClerkSidebar from './ClerkSidebar';
+import AdminUsers from './modules/AdminUsers';
 import Baptisms from './modules/Baptisms';
 import ChildDedications from './modules/ChildDedications';
 import MeetingsRecords from './modules/MeetingsRecords';
 import Departments from './modules/Departments';
 import Communication from './modules/Communication';
 import MembershipRecords from './modules/MembershipRecords';
+import WeddingsAndNotifications from './modules/WeddingsAndNotifications';
 
 // Icons
 import { 
@@ -355,7 +357,9 @@ const ClerkDashboard = () => {
           )}
 
           {/* MODULE TABS */}
+          {activeTab === 'admin-users' && <AdminUsers currentUserRole={currentUserRole} />}
           {activeTab === 'baptisms' && <Baptisms currentUserRole={currentUserRole} />}
+          {activeTab === 'weddings' && <WeddingsAndNotifications currentUserRole={currentUserRole} />}
           {activeTab === 'membership' && <MembershipRecords currentUserRole={currentUserRole} />}
           {activeTab === 'dedications' && <ChildDedications currentUserRole={currentUserRole} />}
           {activeTab === 'meetings' && <MeetingsRecords currentUserRole={currentUserRole} />}

@@ -2,6 +2,7 @@ import React from 'react';
 import { 
   LayoutGrid, 
   Users, 
+  ShieldCheck,
   ArrowLeftRight,
   Droplets, 
   Baby, 
@@ -9,6 +10,7 @@ import {
   Building2, 
   Megaphone,
   FileBarChart,
+  Heart,
   LogOut,
   Church
 } from 'lucide-react';
@@ -21,11 +23,15 @@ const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Church Cl
       icon: <LayoutGrid size={22} />
     },
     { 
+      id: 'admin-users', 
+      label: 'Admin Users', 
+      icon: <ShieldCheck size={22} />
+    },
+    { 
       id: 'membership', 
       label: 'Member Records', 
       icon: <Users size={22} />
     },
-    
     { 
       id: 'baptisms', 
       label: 'Baptisms', 
@@ -52,6 +58,11 @@ const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Church Cl
       icon: <Megaphone size={22} />
     },
     { 
+      id: 'weddings', 
+      label: 'WEDDINGS & NOTIFS', 
+      icon: <Heart size={22} />, // FIXED: Wrapped in JSX element syntax
+    },
+    { 
       id: 'conference-reports', 
       label: 'Conference Reports', 
       icon: <FileBarChart size={22} />
@@ -76,7 +87,7 @@ const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Church Cl
         </div>
       </div>
 
-      {/* 2. Main Navigation Area  */}
+      {/* 2. Main Navigation Area */}
       <nav className="flex-1 flex flex-col justify-evenly my-6 py-2">
         {menuItems.map((item) => {
           const isActive = activeTab === item.id;
@@ -94,7 +105,6 @@ const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Church Cl
                 <div className={isActive ? 'text-slate-900' : 'text-emerald-400/80'}>
                   {item.icon}
                 </div>
-                {/* Font boosted from text-sm to text-base with extra-bold rendering */}
                 <span className="text-base font-black tracking-wide uppercase truncate">
                   {item.label}
                 </span>
