@@ -167,6 +167,23 @@ JAZZMIN_SETTINGS = {
         {"name": "Home",  "url": "admin:index", "permissions": ["auth.view_user"]},
         {"name": "Clerk Desk Dashboard", "url": "/api/v1/clerk/dashboard/", "new_window": True},
     ],
+
+    "hide_models": [
+        "core.MeetingAttendance",
+        "core.AbsenceApology",
+        "core.AttendanceSheetUpload",
+    ],
+
+    # Custom menu ordering for clarity
+    "order_with_respect_to": [
+        "core.MemberRecord",
+        "core.Meeting",
+        "core.Department",
+        "core.DepartmentalReport",
+        "core.BaptismRecord",
+        "core.ChildDedication",
+        "core.Bulletin",
+    ],
     
     # UI Customizations
     "show_sidebar": True,
@@ -181,6 +198,8 @@ JAZZMIN_SETTINGS = {
     "default_icon_parents": "fas fa-chevron-circle-right",
     "default_icon_children": "fas fa-circle",
 }
+
+
 
 JAZZMIN_UI_TWEAKS = {
     "navbar_small_text": False,

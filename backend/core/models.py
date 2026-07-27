@@ -279,6 +279,8 @@ class AttendanceSheetUpload(models.Model):
     uploaded_file = models.FileField(upload_to='meetings/attendance_sheets/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     processed = models.BooleanField(default=False)
+    verbose_name = "Attendance Sheet Upload"
+    verbose_name_plural = "Attendance Sheet Uploads"
 
     def __str__(self):
         return f"Sheet for {self.meeting.meeting_ref} ({self.uploaded_at.strftime('%Y-%m-%d')})"
@@ -291,6 +293,8 @@ class AbsenceApology(models.Model):
     reason = models.TextField()
     supporting_doc = models.FileField(upload_to='meetings/apologies/', blank=True, null=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
+    verbose_name = "Absence Apology"
+    verbose_name_plural = "Absence Apologies"
 
     def __str__(self):
         return f"Apology: {self.member_name} - {self.meeting.meeting_ref}"

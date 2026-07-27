@@ -10,6 +10,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Count, Q
 from rest_framework.pagination import PageNumberPagination
+from django.db.models.functions import TruncMonth
+
+
+from .models import MemberRecord, BaptismRecord, ChildDedication
+from .serializers import DashboardAnalyticsSerializer
 
 
 from authentication.permissions import IsChurchClerk, IsPastoralTeam
@@ -318,3 +323,61 @@ class MemberRecordViewSet(viewsets.ModelViewSet):
     search_fields = ['full_name', 'phone_number', 'email', 'origin_church']
     ordering_fields = ['full_name', 'year_joined', 'created_at']
 
+class DashboardAnalyticsViewSet(viewsets.ViewSet):
+    """
+    ViewSet to deliver core dashboard summary metrics & trend analytics.
+    Endpoint: GET /api/analytics/
+    """
+    permission_classes = [permissions.IsAuthenticated, IsClerkOrPastorOrElder]
+
+    def list(self, request):
+        current_year = timezone.now().year
+
+        # 1. KPI Cards
+        total_active_members = MemberRecord.objects.filter(is_active=True).count()
+        baptisms_ytd = BaptismRecord.objects.filter(baptism_date__year=current_year).count()
+        child_dedications_total = ChildDedication.objects.count()
+        
+        # Pending transfers (transfers still undergoing board or reading process)
+        pending_transfers = MemberRecord.objects.filter(
+            ~Q(transfer_status='2nd Reading / Transfer Granted'),
+            transfer_status__isnull=False
+        ).count()
+
+        # 2. Baptism Trends (Monthly count for the current year)
+        baptism_months = (
+            BaptismRecord.objects.filter(baptism_date__year=current_year)
+            .annotate(month=TruncMonth('baptism_date'))
+            .values('month')
+            .annotate(count=Count('id'))
+            .order_by('month')
+        )
+        
+        # Format monthly data into array or key-value map for frontend charts
+        monthly_baptism_data = [0] * 12
+        for entry in baptism_months:
+            if entry['month']:
+                month_idx = entry['month'].month - 1
+                monthly_baptism_data[month_idx] = entry['count']
+
+        # 3. Membership Transfers (Incoming vs Outgoing breakdown)
+        incoming_transfers = MemberRecord.objects.filter(transfer_type='Transfer In').count()
+        outgoing_transfers = MemberRecord.objects.filter(transfer_type='Transfer Out').count()
+
+        analytics_data = {
+            'total_active_members': total_active_members,
+            'baptisms_ytd': baptisms_ytd,
+            'child_dedications_total': child_dedications_total,
+            'pending_transfers': pending_transfers,
+            'membership_transfers': {
+                'incoming': incoming_transfers,
+                'outgoing': outgoing_transfers,
+            },
+            'baptism_trends': {
+                'year': current_year,
+                'monthly_counts': monthly_baptism_data
+            }
+        }
+
+        serializer = DashboardAnalyticsSerializer(analytics_data)
+        return Response(serializer.data, status=status.HTTP_200_OK)

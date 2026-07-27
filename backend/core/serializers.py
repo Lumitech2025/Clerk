@@ -228,3 +228,15 @@ class MemberRecordSerializer(serializers.ModelSerializer):
         model = MemberRecord
         fields = '__all__'
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class DashboardAnalyticsSerializer(serializers.Serializer):
+    # Top KPI Metrics Cards
+    total_active_members = serializers.IntegerField()
+    baptisms_ytd = serializers.IntegerField()
+    child_dedications_total = serializers.IntegerField()
+    pending_transfers = serializers.IntegerField()
+
+    # Chart Data Sets
+    membership_transfers = serializers.DictField()
+    baptism_trends = serializers.DictField()

@@ -142,6 +142,8 @@ export default function MembershipRecords() {
       formData.append('phone_number', memberForm.phone);
       formData.append('email', memberForm.email);
 
+      formData.append('is_active', 'true');
+
       // Parents Info
       formData.append('father_name', memberForm.fatherName);
       formData.append('father_phone', memberForm.fatherPhone);

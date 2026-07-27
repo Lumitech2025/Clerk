@@ -1,7 +1,14 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import AbsenceApologyViewSet, BaptismViewSet, ChildDedicationViewSet, DepartmentViewSet, DepartmentalReportViewSet, BulletinViewSet,MeetingViewSet,MeetingAttendanceViewSet,AttendanceSheetUploadViewSet, AbsenceApologyViewSet,MemberRecordViewSet
+from .views import (
+    AbsenceApologyViewSet, BaptismViewSet, ChildDedicationViewSet, 
+    DepartmentViewSet, DepartmentalReportViewSet, BulletinViewSet, 
+    MeetingViewSet, MeetingAttendanceViewSet, AttendanceSheetUploadViewSet, 
+    MemberRecordViewSet, DashboardAnalyticsViewSet
+)
+
 router = DefaultRouter()
+router.register(r'analytics', DashboardAnalyticsViewSet, basename='analytics') # Endpoint: /api/analytics/
 router.register(r'baptisms', BaptismViewSet, basename='baptism')
 router.register(r'child-dedications', ChildDedicationViewSet, basename='child-dedication')
 router.register(r'departments', DepartmentViewSet, basename='department')
