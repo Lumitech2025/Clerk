@@ -231,16 +231,22 @@ class MemberRecordSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
+
+
 class DashboardAnalyticsSerializer(serializers.Serializer):
     # Top KPI Metrics Cards
     total_active_members = serializers.IntegerField()
     baptisms_ytd = serializers.IntegerField()
     child_dedications_total = serializers.IntegerField()
     pending_transfers = serializers.IntegerField()
+    upcoming_events_count = serializers.IntegerField(default=0)
 
-    # Chart Data Sets
-    membership_transfers = serializers.DictField()
-    baptism_trends = serializers.DictField()
+    # Monthly Metrics Chart Data
+    monthly_metrics = serializers.ListField(child=serializers.DictField())
+    
+    # Legacy / Additional Metrics
+    membership_transfers = serializers.DictField(required=False)
+    baptism_trends = serializers.DictField(required=False)
 
 
 class WeddingNotificationSerializer(serializers.ModelSerializer):

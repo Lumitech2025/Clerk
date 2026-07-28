@@ -14,19 +14,18 @@ import {
   Phone,
   BookOpen,
   ChevronLeft,
-  ChevronRight,
-  User
+  ChevronRight
 } from 'lucide-react';
 
-// Reusable Pastoral Executive KPI Stat Card
-const KpiCard = ({ title, value, icon: Icon, valueColor, iconBg }) => (
-  <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between">
+// Reusable Pastoral Executive KPI Stat Card with Soft Background Tints & Crisp Bold Typography
+const KpiCard = ({ title, value, icon: Icon, valueColor, iconBg, cardBg }) => (
+  <div className={`${cardBg} p-5 sm:p-6 rounded-2xl border shadow-xs flex items-center justify-between transition-all hover:shadow-sm`}>
     <div>
-      <p className="text-xs font-black text-slate-500 uppercase tracking-wider">{title}</p>
-      <h3 className={`text-3xl font-black ${valueColor} mt-2 tracking-tight`}>{value}</h3>
+      <p className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">{title}</p>
+      <h3 className={`text-3xl sm:text-4xl font-extrabold ${valueColor} mt-1.5 tracking-tight`}>{value}</h3>
     </div>
-    <div className={`p-4 rounded-xl ${iconBg}`}>
-      <Icon size={24} />
+    <div className={`p-3.5 sm:p-4 rounded-xl ${iconBg} shadow-xs`}>
+      <Icon size={24} className="stroke-[2.2]" />
     </div>
   </div>
 );
@@ -109,10 +108,10 @@ const PastorWeddingsAndNotifications = () => {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap');
         
-        .font-roboto {
-          font-family: 'Roboto', sans-serif;
+        .font-jakarta {
+          font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
         @media print {
@@ -133,13 +132,13 @@ const PastorWeddingsAndNotifications = () => {
         }
       `}</style>
 
-      <div className="space-y-6 font-roboto text-slate-800 print:p-0 print:m-0 antialiased">
+      <div className="space-y-6 font-jakarta text-slate-800 print:p-0 print:m-0 antialiased">
         
         {/* HEADER BAR */}
         <div className="print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
-              <Heart className="text-rose-500" size={30} /> Weddings Notifications
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 flex items-center gap-3 tracking-tight">
+                Wedding Notifications
             </h1>
             
           </div>
@@ -147,11 +146,11 @@ const PastorWeddingsAndNotifications = () => {
           <div className="flex items-center gap-3">
             <button 
               onClick={fetchWeddings}
-              className="p-2.5 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer flex items-center gap-2 font-bold text-xs"
+              className="px-4 py-2.5 text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-xl transition cursor-pointer flex items-center gap-2 font-bold text-xs"
               title="Refresh Registry"
             >
-              <RefreshCw size={16} className={loading ? 'animate-spin text-emerald-600' : ''} />
-              
+              <RefreshCw size={15} className={loading ? 'animate-spin text-emerald-600' : ''} />
+              <span>Refresh Registry</span>
             </button>
           </div>
         </div>
@@ -162,29 +161,33 @@ const PastorWeddingsAndNotifications = () => {
             title="Total Notifications" 
             value={totalNotifications} 
             icon={Heart} 
-            valueColor="text-rose-600"
-            iconBg="bg-rose-50 text-rose-600"
+            valueColor="text-rose-700"
+            iconBg="bg-rose-100/80 text-rose-700"
+            cardBg="bg-rose-50/50 border-rose-200/60"
           />
           <KpiCard 
             title="Pending Board Action" 
             value={pendingReview} 
             icon={Clock} 
-            valueColor="text-amber-600"
-            iconBg="bg-amber-50 text-amber-600"
+            valueColor="text-amber-700"
+            iconBg="bg-amber-100/80 text-amber-700"
+            cardBg="bg-amber-50/50 border-amber-200/60"
           />
           <KpiCard 
             title="Approved & Upcoming" 
             value={approvedUpcoming} 
             icon={CheckCircle2} 
-            valueColor="text-emerald-600"
-            iconBg="bg-emerald-50 text-emerald-600"
+            valueColor="text-emerald-700"
+            iconBg="bg-emerald-100/80 text-emerald-700"
+            cardBg="bg-emerald-50/50 border-emerald-200/60"
           />
           <KpiCard 
             title="Completed Weddings" 
             value={completedWeddings} 
             icon={BookOpen} 
-            valueColor="text-indigo-600"
-            iconBg="bg-indigo-50 text-indigo-600"
+            valueColor="text-indigo-700"
+            iconBg="bg-indigo-100/80 text-indigo-700"
+            cardBg="bg-indigo-50/50 border-indigo-200/60"
           />
         </div>
 
@@ -202,13 +205,13 @@ const PastorWeddingsAndNotifications = () => {
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               type="text"
-              placeholder="Search by groom, bride, pastor, or elder..."
+              placeholder="Search groom, bride, pastor, elder..."
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition"
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50/80 border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:border-emerald-500 focus:bg-white transition placeholder:text-slate-400"
             />
           </div>
 
@@ -220,9 +223,9 @@ const PastorWeddingsAndNotifications = () => {
                   setStatusFilter(st);
                   setCurrentPage(1);
                 }}
-                className={`px-3.5 py-2 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold tracking-wide transition cursor-pointer whitespace-nowrap ${
                   statusFilter === st 
-                    ? 'bg-slate-900 text-white' 
+                    ? 'bg-slate-900 text-white shadow-xs' 
                     : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
                 }`}
               >
@@ -236,18 +239,18 @@ const PastorWeddingsAndNotifications = () => {
         <div className="print:hidden bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Wedding Notifications</h2>
+              <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Active Wedding Notifications</h2>
               
             </div>
-            <span className="text-xs font-bold bg-slate-100 text-slate-700 px-3.5 py-1.5 rounded-lg">
-              {filteredWeddings.length} Total Records
+            <span className="text-xs font-extrabold bg-slate-100 text-slate-700 px-3.5 py-1.5 rounded-xl border border-slate-200/60">
+              {filteredWeddings.length} Records
             </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-black uppercase tracking-wider text-xs">
+                <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-600 font-extrabold tracking-wider text-[11px] uppercase">
                   <th className="py-4 px-5">Couple Details</th>
                   <th className="py-4 px-5">Church / Field</th>
                   <th className="py-4 px-5">Intended Date & Place</th>
@@ -262,7 +265,7 @@ const PastorWeddingsAndNotifications = () => {
                     <td colSpan="6" className="py-12 text-center text-slate-500 font-semibold">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <Loader2 className="animate-spin text-emerald-600" size={28} />
-                        <span>Loading wedding records...</span>
+                        <span className="text-xs font-bold text-slate-600">Loading wedding records...</span>
                       </div>
                     </td>
                   </tr>
@@ -274,14 +277,14 @@ const PastorWeddingsAndNotifications = () => {
                   </tr>
                 ) : (
                   currentRecords.map((w) => (
-                    <tr key={w.id} className="hover:bg-slate-50/80 transition">
+                    <tr key={w.id} className="hover:bg-slate-50/80 transition-colors">
                       
                       {/* Couple Details */}
                       <td className="py-4 px-5">
-                        <div className="font-bold text-slate-900 text-base">{w.applicant_name}</div>
+                        <div className="font-extrabold text-slate-900 text-base">{w.applicant_name}</div>
                         <div className="font-bold text-rose-600 text-xs mt-0.5">{w.spouse_name}</div>
                         <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-1">
-                          <Phone size={12} /> {w.applicant_phone || 'N/A'} / {w.spouse_phone || 'N/A'}
+                          <Phone size={12} className="text-slate-400" /> {w.applicant_phone || 'N/A'} / {w.spouse_phone || 'N/A'}
                         </div>
                       </td>
 
@@ -295,43 +298,43 @@ const PastorWeddingsAndNotifications = () => {
                           <span className="font-semibold text-slate-500">Bride: </span>
                           <span className="font-bold text-slate-800">{w.spouse_church || '—'}</span>
                           {w.spouse_conference && (
-                            <span className="text-slate-500 block text-[11px] font-medium">({w.spouse_conference})</span>
+                            <span className="text-slate-500 block text-[11px] font-semibold">({w.spouse_conference})</span>
                           )}
                         </div>
                       </td>
 
                       {/* Intended Date & Place */}
                       <td className="py-4 px-5 text-xs">
-                        <div className="flex items-center gap-1.5 font-bold text-slate-900 text-sm">
+                        <div className="flex items-center gap-1.5 font-extrabold text-slate-900 text-sm">
                           <Calendar size={14} className="text-emerald-600 shrink-0" />
                           {w.wedding_date}
                         </div>
-                        <p className="text-slate-600 font-semibold mt-1">{w.wedding_place}</p>
+                        <p className="text-slate-700 font-bold mt-1">{w.wedding_place}</p>
                         {w.reception_venue && (
-                          <p className="text-slate-400 text-[11px]">Reception: {w.reception_venue}</p>
+                          <p className="text-slate-500 text-[11px] font-medium">Reception: {w.reception_venue}</p>
                         )}
                       </td>
 
                       {/* Officiating Team */}
                       <td className="py-4 px-5 text-xs space-y-1">
-                        <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                        <div className="flex items-center gap-1.5 font-bold text-slate-900">
                           <UserCheck size={14} className="text-emerald-600 shrink-0" />
                           <span>Officiating: {w.officiating_pastor}</span>
                         </div>
                         {w.counseling_pastor && (
-                          <p className="text-slate-500 font-medium pl-5">Counseling: {w.counseling_pastor}</p>
+                          <p className="text-slate-600 font-semibold pl-5">Counseling: {w.counseling_pastor}</p>
                         )}
                         {w.officiating_elder && (
-                          <p className="text-slate-500 font-medium pl-5">Elder: {w.officiating_elder}</p>
+                          <p className="text-slate-600 font-semibold pl-5">Elder: {w.officiating_elder}</p>
                         )}
                       </td>
 
                       {/* Status */}
                       <td className="py-4 px-5">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold ${
-                          w.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : 
-                          w.status === 'COMPLETED' ? 'bg-indigo-100 text-indigo-800' :
-                          w.status === 'REJECTED' ? 'bg-rose-100 text-rose-800' : 'bg-amber-100 text-amber-800'
+                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-extrabold tracking-wide ${
+                          w.status === 'APPROVED' ? 'bg-emerald-100/80 text-emerald-800 border border-emerald-200' : 
+                          w.status === 'COMPLETED' ? 'bg-indigo-100/80 text-indigo-800 border border-indigo-200' :
+                          w.status === 'REJECTED' ? 'bg-rose-100/80 text-rose-800 border border-rose-200' : 'bg-amber-100/80 text-amber-800 border border-amber-200'
                         }`}>
                           {w.status}
                         </span>
@@ -341,7 +344,7 @@ const PastorWeddingsAndNotifications = () => {
                       <td className="py-4 px-5 text-right">
                         <button
                           onClick={() => handlePrint(w)}
-                          className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold text-xs rounded-xl transition inline-flex items-center gap-1.5 cursor-pointer"
+                          className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-900 font-bold text-xs rounded-xl transition inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
                         >
                           <Printer size={15} /> Print Form
                         </button>
@@ -356,7 +359,7 @@ const PastorWeddingsAndNotifications = () => {
 
           {/* PAGINATION FOOTER */}
           {!loading && !error && filteredWeddings.length > 0 && (
-            <div className="p-5 border-t border-slate-100 flex items-center justify-between text-sm font-semibold text-slate-600">
+            <div className="p-5 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm font-semibold text-slate-600">
               <div>
                 Showing <span className="font-extrabold text-slate-900">{startIndex + 1}</span> to <span className="font-extrabold text-slate-900">{Math.min(startIndex + itemsPerPage, filteredWeddings.length)}</span> of <span className="font-extrabold text-slate-900">{filteredWeddings.length}</span> entries
               </div>
@@ -365,7 +368,7 @@ const PastorWeddingsAndNotifications = () => {
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1}
-                  className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
                 >
                   <ChevronLeft size={18} />
                 </button>
@@ -374,9 +377,9 @@ const PastorWeddingsAndNotifications = () => {
                   <button
                     key={page}
                     onClick={() => handlePageChange(page)}
-                    className={`px-3.5 py-1.5 rounded-lg text-sm font-bold transition cursor-pointer ${
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition cursor-pointer ${
                       currentPage === page
-                        ? 'bg-emerald-600 text-white'
+                        ? 'bg-emerald-600 text-white shadow-xs'
                         : 'text-slate-700 border border-slate-200 hover:bg-slate-50'
                     }`}
                   >
@@ -387,7 +390,7 @@ const PastorWeddingsAndNotifications = () => {
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
+                  className="p-2 rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:hover:bg-transparent transition cursor-pointer"
                 >
                   <ChevronRight size={18} />
                 </button>

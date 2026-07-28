@@ -13,7 +13,9 @@ from django.db.models.functions import TruncMonth
 
 from rest_framework import viewsets, permissions, filters
 from django_filters.rest_framework import DjangoFilterBackend
-from django.db.models import Q
+
+
+MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 
 # Models
@@ -431,12 +433,20 @@ class AbsenceApologyViewSet(viewsets.ModelViewSet):
 
 
 class DashboardAnalyticsViewSet(viewsets.ViewSet):
-    """Deliver core dashboard summary metrics & trend analytics."""
+    """Deliver core dashboard summary metrics & trend analytics for Church Leadership."""
     permission_classes = [IsClerkOrPastorOrElder]
 
     def list(self, request):
         current_year = timezone.now().year
+        today = timezone.localtime(timezone.now()).date()
 
+        event_viewset = EventViewSet()
+        event_viewset.request = request
+        visible_events = event_viewset.get_queryset()
+
+        upcoming_events_count = visible_events.filter(start_date__gte=today).count()
+
+        # 1. Top KPI Metrics
         total_active_members = MemberRecord.objects.filter(is_active=True).count()
         baptisms_ytd = BaptismRecord.objects.filter(baptism_date__year=current_year).count()
         child_dedications_total = ChildDedication.objects.count()
@@ -446,41 +456,85 @@ class DashboardAnalyticsViewSet(viewsets.ViewSet):
             transfer_status__isnull=False
         ).count()
 
-        baptism_months = (
+        upcoming_events_count = Event.objects.filter(start_date__gte=today).count()
+
+        # 2. Monthly Monthly Metrics Aggregation (Baptisms, Transfers In, Transfers Out)
+        baptism_counts = [0] * 12
+        transfers_in_counts = [0] * 12
+        transfers_out_counts = [0] * 12
+
+        # Baptisms
+        baptisms_query = (
             BaptismRecord.objects.filter(baptism_date__year=current_year)
             .annotate(month=TruncMonth('baptism_date'))
             .values('month')
             .annotate(count=Count('id'))
-            .order_by('month')
         )
-        
-        monthly_baptism_data = [0] * 12
-        for entry in baptism_months:
+        for entry in baptisms_query:
             if entry['month']:
-                month_idx = entry['month'].month - 1
-                monthly_baptism_data[month_idx] = entry['count']
+                idx = entry['month'].month - 1
+                baptism_counts[idx] = entry['count']
 
-        incoming_transfers = MemberRecord.objects.filter(transfer_type='Transfer In').count()
-        outgoing_transfers = MemberRecord.objects.filter(transfer_type='Transfer Out').count()
+        # Transfers In
+        transfers_in_query = (
+            MemberRecord.objects.filter(
+                date_joined__year=current_year,
+                joining_method='Transfer',
+                transfer_type='Transfer In'
+            )
+            .annotate(month=TruncMonth('date_joined'))
+            .values('month')
+            .annotate(count=Count('id'))
+        )
+        for entry in transfers_in_query:
+            if entry['month']:
+                idx = entry['month'].month - 1
+                transfers_in_counts[idx] = entry['count']
+
+        # Transfers Out
+        transfers_out_query = (
+            MemberRecord.objects.filter(
+                updated_at__year=current_year,
+                transfer_type='Transfer Out'
+            )
+            .annotate(month=TruncMonth('updated_at'))
+            .values('month')
+            .annotate(count=Count('id'))
+        )
+        for entry in transfers_out_query:
+            if entry['month']:
+                idx = entry['month'].month - 1
+                transfers_out_counts[idx] = entry['count']
+
+        # Format Chart Payload
+        monthly_metrics = []
+        for i in range(12):
+            monthly_metrics.append({
+                'month': MONTH_NAMES[i],
+                'Baptisms': baptism_counts[i],
+                'TransfersIn': transfers_in_counts[i],
+                'TransfersOut': transfers_out_counts[i]
+            })
 
         analytics_data = {
             'total_active_members': total_active_members,
             'baptisms_ytd': baptisms_ytd,
             'child_dedications_total': child_dedications_total,
             'pending_transfers': pending_transfers,
+            'upcoming_events_count': upcoming_events_count,
+            'monthly_metrics': monthly_metrics,
             'membership_transfers': {
-                'incoming': incoming_transfers,
-                'outgoing': outgoing_transfers,
+                'incoming': sum(transfers_in_counts),
+                'outgoing': sum(transfers_out_counts),
             },
             'baptism_trends': {
                 'year': current_year,
-                'monthly_counts': monthly_baptism_data
+                'monthly_counts': baptism_counts
             }
         }
 
         serializer = DashboardAnalyticsSerializer(analytics_data)
         return Response(serializer.data, status=status.HTTP_200_OK)
-
 
 
 
@@ -549,6 +603,17 @@ class EventViewSet(viewsets.ModelViewSet):
     ordering_fields = ['start_date', 'start_time', 'created_at']
     ordering = ['start_date', 'start_time']
 
+    @action(detail=False, methods=['get'], url_path='upcoming', pagination_class=None)
+    def upcoming(self, request):
+        """Returns unpaginated list of upcoming events visible to the current user."""
+        # Use local date to avoid UTC boundary drops
+        today = timezone.localtime(timezone.now()).date()
+        
+        # get_queryset() ensures Role-Based Access Control filters are respected
+        queryset = self.get_queryset().filter(start_date__gte=today).order_by('start_date', 'start_time')
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
     def get_queryset(self):
         user = self.request.user
 
@@ -556,7 +621,7 @@ class EventViewSet(viewsets.ModelViewSet):
         if user.is_staff or user.is_superuser:
             return Event.objects.all()
 
-        user_role = getattr(user, 'role', 'MEMBER')
+        user_role = get_user_role(user)
 
         # Define visibility mapping based on user role
         allowed_audiences = [Event.TargetAudience.ALL]
