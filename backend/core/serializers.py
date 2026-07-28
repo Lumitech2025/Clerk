@@ -1,6 +1,7 @@
 from rest_framework import serializers
 import json
-from .models import WeddingNotification, BaptismRecord, ChildDedication,Department, DepartmentalReport, Bulletin,Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, Department, MemberRecord
+from .models import Event, HolyCommunion, WeddingNotification, BaptismRecord, ChildDedication,Department, DepartmentalReport, Bulletin,Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, Department, MemberRecord
+
 
 class BaptismSerializer(serializers.ModelSerializer):
     class Meta:
@@ -262,3 +263,113 @@ class WeddingNotificationSerializer(serializers.ModelSerializer):
             validated_data['has_recommendation_letter'] = True
 
         return super().create(validated_data)
+
+
+
+
+class HolyCommunionSerializer(serializers.ModelSerializer):
+    recorded_by_name = serializers.SerializerMethodField()
+    file_name = serializers.SerializerMethodField()
+    file_size = serializers.SerializerMethodField()
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = HolyCommunion
+        fields = [
+            'id',
+            'year',
+            'quarter',
+            'service_date',
+            'members_present',
+            'remarks',
+            'file',
+            'file_url',
+            'file_name',
+            'file_size',
+            'recorded_by',
+            'recorded_by_name',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'recorded_by']
+
+    def get_recorded_by_name(self, obj):
+        if obj.recorded_by:
+            full_name = obj.recorded_by.get_full_name()
+            return full_name if full_name else obj.recorded_by.username
+        return "Church Clerk"
+
+    def get_file_name(self, obj):
+        if obj.file and hasattr(obj.file, 'name'):
+            return obj.file.name.split('/')[-1]
+        return None
+
+    def get_file_size(self, obj):
+        if obj.file and hasattr(obj.file, 'size'):
+            size = obj.file.size
+            if size < 1024 * 1024:
+                return f"{round(size / 1024, 1)} KB"
+            return f"{round(size / (1024 * 1024), 1)} MB"
+        return "0 KB"
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if obj.file and request:
+            return request.build_absolute_uri(obj.file.url)
+        elif obj.file:
+            return obj.file.url
+        return None
+
+
+class EventSerializer(serializers.ModelSerializer):
+    # Map frontend camelCase fields cleanly to backend model fields
+    eventType = serializers.CharField(source='event_type', required=False)
+    targetAudience = serializers.CharField(source='target_audience', required=False)
+    isMultiDay = serializers.BooleanField(source='is_multi_day', required=False)
+    isAllDay = serializers.BooleanField(source='is_all_day', required=False)
+    startDate = serializers.DateField(source='start_date')
+    endDate = serializers.DateField(source='end_date', required=False, allow_null=True)
+    startTime = serializers.TimeField(source='start_time', required=False, allow_null=True)
+    endTime = serializers.TimeField(source='end_time', required=False, allow_null=True)
+    groomName = serializers.CharField(source='groom_name', required=False, allow_blank=True)
+    brideName = serializers.CharField(source='bride_name', required=False, allow_blank=True)
+
+    class Meta:
+        model = Event
+        fields = [
+            'id',
+            'title',
+            'eventType',
+            'targetAudience',
+            'status',
+            'isMultiDay',
+            'isAllDay',
+            'startDate',
+            'endDate',
+            'startTime',
+            'endTime',
+            'venue',
+            'organizer',
+            'description',
+            'groomName',
+            'brideName',
+            'created_by',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
+
+    def validate(self, attrs):
+        # Note: DRF automatically translates source='...' aliases back to 
+        # model field names inside `attrs` (e.g., eventType -> event_type)
+        event_type = attrs.get('event_type', getattr(self.instance, 'event_type', None))
+        groom_name = attrs.get('groom_name', getattr(self.instance, 'groom_name', ''))
+        bride_name = attrs.get('bride_name', getattr(self.instance, 'bride_name', ''))
+
+        if event_type == Event.EventCategory.WEDDING:
+            if not groom_name or not bride_name:
+                raise serializers.ValidationError({
+                    "wedding": "Both Groom Name and Bride Name are required for wedding events."
+                })
+
+        return attrs

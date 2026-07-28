@@ -4,7 +4,7 @@ from .views import (
     AbsenceApologyViewSet, BaptismViewSet, ChildDedicationViewSet, 
     DepartmentViewSet, DepartmentalReportViewSet, BulletinViewSet, 
     MeetingViewSet, MeetingAttendanceViewSet, AttendanceSheetUploadViewSet, 
-    MemberRecordViewSet, DashboardAnalyticsViewSet, WeddingNotificationViewSet
+    MemberRecordViewSet, DashboardAnalyticsViewSet, WeddingNotificationViewSet, HolyCommunionViewSet, EventViewSet
 )
 
 router = DefaultRouter()
@@ -20,6 +20,8 @@ router.register(r'attendance-sheets', AttendanceSheetUploadViewSet, basename='at
 router.register(r'absence-apologies', AbsenceApologyViewSet, basename='absence-apology')
 router.register(r'member-records', MemberRecordViewSet, basename='member-record')
 router.register(r'weddings', WeddingNotificationViewSet, basename='wedding')
+router.register(r'holy-communion', HolyCommunionViewSet, basename='holy-communion')
+router.register(r'events', EventViewSet, basename='event')
 
 urlpatterns = [
     path('', include(router.urls)),

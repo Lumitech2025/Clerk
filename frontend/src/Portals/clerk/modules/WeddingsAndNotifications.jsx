@@ -211,11 +211,9 @@ const WeddingsAndNotifications = () => {
         <div className="print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
           <div>
             <h2 className="text-2xl sm:text-3xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
-              <Heart className="text-rose-500" size={30} /> Weddings & Marriage Notifications
+               Weddings Notifications
             </h2>
-            <p className="text-sm font-medium text-slate-500 mt-1">
-              Newlife SDA Church • Church Clerk Desk & Registry
-            </p>
+            
           </div>
 
           <div className="flex items-center gap-3">

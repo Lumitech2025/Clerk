@@ -5,8 +5,9 @@ import PastorSidebar from './PastorSidebar';
 import MembershipRecords from './modules/PastorMembership';
 import PastorMeetingRecords from './modules/MeetingRecords';
 import PastorChildDedications from './modules/ChildDedications';
-import PastorWeddingsAndNotifications from './modules/WeddingsAndNotifications'
-
+import PastorWeddingsAndNotifications from './modules/WeddingsAndNotifications';
+import PastorDepartments from './modules/PastorDepartments';
+import PastorCommunication from './modules/PastorCommunication';
 
 // Icons
 import { 
@@ -42,7 +43,7 @@ const PastorDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Graph Toggle Filter ('All', 'TransfersIn', 'TransfersOut', 'Baptisms')
+  // Graph Toggle Filter ('All', 'Baptisms', 'TransfersIn', 'TransfersOut')
   const [chartFilter, setChartFilter] = useState('All');
 
   // RBAC User Role resolution
@@ -56,41 +57,8 @@ const PastorDashboard = () => {
     upcomingEventsCount: 0,
   });
 
-  // Upcoming Church Events State
-  const [eventsList, setEventsList] = useState([
-    {
-      id: 1,
-      title: 'Holy Communion & Divine Service',
-      date: 'Aug 01, 2026',
-      time: '09:00 AM - 12:30 PM',
-      location: 'Main Sanctuary',
-      category: 'Worship'
-    },
-    {
-      id: 2,
-      title: 'Quarterly Church Board Meeting',
-      date: 'Aug 09, 2026',
-      time: '02:00 PM - 05:00 PM',
-      location: 'Board Room',
-      category: 'Administrative'
-    },
-    {
-      id: 3,
-      title: 'Youth Evangelistic Campaign',
-      date: 'Aug 15, 2026',
-      time: '04:00 PM - 06:30 PM',
-      location: 'Church Grounds',
-      category: 'Evangelism'
-    },
-    {
-      id: 4,
-      title: 'Pre-Marital Counseling Seminar',
-      date: 'Aug 22, 2026',
-      time: '10:00 AM - 01:00 PM',
-      location: 'Pastor\'s Office',
-      category: 'Pastoral Care'
-    }
-  ]);
+  // Upcoming Church Events State (Initialized clean, loaded dynamically)
+  const [eventsList, setEventsList] = useState([]);
 
   // Data Import Modal State
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -108,37 +76,43 @@ const PastorDashboard = () => {
         API.get('events/upcoming/').catch(() => null)
       ]);
 
+      let fetchedEvents = [];
       if (eventsRes?.data) {
-        const fetchedEvents = eventsRes.data.results || eventsRes.data || [];
-        if (fetchedEvents.length > 0) {
-          setEventsList(fetchedEvents);
-        }
+        fetchedEvents = eventsRes.data.results || eventsRes.data || [];
+        setEventsList(fetchedEvents);
+      } else {
+        setEventsList([]);
       }
-
-      const sampleMonthlyData = MONTH_NAMES.map((month, idx) => ({
-        month,
-        Baptisms: [4, 2, 5, 8, 3, 6, 1, 0, 0, 0, 0, 0][idx],
-        TransfersIn: [2, 5, 3, 4, 6, 2, 0, 0, 0, 0, 0, 0][idx],
-        TransfersOut: [1, 2, 1, 3, 2, 1, 0, 0, 0, 0, 0, 0][idx]
-      }));
 
       if (analyticsRes?.data) {
         const data = analyticsRes.data;
         setKpiStats({
-          activeMembers: data.total_active_members || 1240,
-          baptismsYtd: data.baptisms_ytd || 28,
-          dedicationsCount: data.child_dedications_total || 14,
-          upcomingEventsCount: eventsList.length,
+          activeMembers: data.total_active_members || 0,
+          baptismsYtd: data.baptisms_ytd || 0,
+          dedicationsCount: data.child_dedications_total || 0,
+          upcomingEventsCount: data.upcoming_events_count ?? fetchedEvents.length,
         });
-        setMonthlyMetricsData(sampleMonthlyData);
+
+        // Use real backend monthly analytics data or map empty skeleton array
+        setMonthlyMetricsData(data.monthly_metrics || MONTH_NAMES.map(month => ({
+          month,
+          Baptisms: 0,
+          TransfersIn: 0,
+          TransfersOut: 0
+        })));
       } else {
         setKpiStats({
-          activeMembers: 1240,
-          baptismsYtd: 28,
-          dedicationsCount: 14,
-          upcomingEventsCount: eventsList.length,
+          activeMembers: 0,
+          baptismsYtd: 0,
+          dedicationsCount: 0,
+          upcomingEventsCount: fetchedEvents.length,
         });
-        setMonthlyMetricsData(sampleMonthlyData);
+        setMonthlyMetricsData(MONTH_NAMES.map(month => ({
+          month,
+          Baptisms: 0,
+          TransfersIn: 0,
+          TransfersOut: 0
+        })));
       }
     } catch (err) {
       console.error('Failed to load Pastoral analytics:', err);
@@ -146,7 +120,7 @@ const PastorDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [eventsList.length]);
+  }, []);
 
   useEffect(() => {
     fetchPastorAnalytics();
@@ -178,12 +152,12 @@ const PastorDashboard = () => {
     }
   };
 
-  // Quick Navigation Shortcuts
+  // Quick Navigation Shortcuts (Tier 3 Module updated)
   const quickAccessModules = [
-    { id: 1, title: 'Membership Registry', date: 'Quarter 3, 2026', targetTab: 'membership' },
-    { id: 2, title: 'Board & Business Minutes', date: 'Latest - July 2026', targetTab: 'meetings' },
-    { id: 3, title: 'Weddings', date: 'Upcoming Registrations', targetTab: 'weddings' },
-    { id: 4, title: 'Divine Services', date: 'Active Schedules', targetTab: 'pulpit' }
+    { id: 1, title: 'Membership Registry', date: 'Active Members Directory', targetTab: 'membership' },
+    { id: 2, title: 'Board & Business Minutes', date: 'Meeting Records', targetTab: 'meetings' },
+    { id: 3, title: 'Weddings', date: 'Upcoming & Past Registrations', targetTab: 'weddings' },
+    { id: 4, title: 'Departments & Reports', date: 'Departmental Activity & Filings', targetTab: 'departments' }
   ];
 
   return (
@@ -197,27 +171,9 @@ const PastorDashboard = () => {
         userRole={currentUserRole}
       />
 
-      {/* MAIN WORKSPACE FIT-TO-SCREEN CONTAINER */}
+      {/* MAIN WORKSPACE CONTAINER */}
       <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
         
-        {/* HEADER BAR */}
-        <header className="bg-white border-b border-slate-200 px-8 py-3.5 flex items-center justify-between shrink-0 shadow-xs">
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-wide">
-              {activeTab === 'dashboard' ? 'Pastoral Portal' : activeTab.replace(/([A-Z])/g, ' $1')}
-            </h1>
-           
-          </div>
-
-          <button
-            onClick={() => setIsImportOpen(true)}
-            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-black px-5 py-2.5 rounded-xl shadow-md transition cursor-pointer uppercase tracking-wider"
-          >
-            <Upload size={16} />
-            <span>Import Records</span>
-          </button>
-        </header>
-
         {/* WORKSPACE BODY */}
         <main className="flex-1 p-5 overflow-hidden flex flex-col justify-between gap-3.5">
           
@@ -265,64 +221,82 @@ const PastorDashboard = () => {
                 />
               </div>
 
-              {/* TIER 2: ASYMMETRIC GRID (EVENTS REDUCED IN WIDTH, CHART EXPANDED) */}
+              {/* TIER 2: ASYMMETRIC GRID */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 flex-1 min-h-0">
                 
-                {/* UPCOMING EVENTS & CALENDAR MODULE (2 COLS WIDE) */}
+                {/* UPCOMING EVENTS MODULE */}
                 <div className="lg:col-span-2 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col h-full min-h-0">
                   <div className="flex items-center justify-between mb-2 shrink-0">
                     <div>
                       <h2 className="text-base font-black text-slate-900">Upcoming Events</h2>
-                      
                     </div>
                     <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg uppercase">
                       {eventsList.length} Scheduled
                     </span>
                   </div>
 
-                  {/* Scrollable Events Box */}
+                  {/* Dynamic Events List */}
                   <div className="space-y-2 overflow-y-auto pr-1 my-1 flex-1">
-                    {eventsList.map((evt) => (
-                      <div 
-                        key={evt.id} 
-                        className="p-2.5 bg-slate-50 hover:bg-slate-100/90 rounded-xl border border-slate-200 transition flex items-center justify-between gap-2"
-                      >
-                        <div className="space-y-0.5 min-w-0">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                            {evt.category}
-                          </span>
-                          <h4 className="text-xs font-bold text-slate-900 leading-snug truncate">{evt.title}</h4>
-                          <div className="flex items-center gap-2 text-[11px] text-slate-500 font-normal truncate">
-                            <span className="flex items-center gap-1 shrink-0">
-                              <FaCalendarAlt className="w-2.5 h-2.5 text-slate-400" /> {evt.date}
-                            </span>
-                            <span className="flex items-center gap-1 truncate">
-                              <FaClock className="w-2.5 h-2.5 text-slate-400" /> {evt.time}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <p className="text-[11px] font-medium text-slate-600 flex items-center gap-1 justify-end">
-                            <FaMapMarkerAlt className="w-2.5 h-2.5 text-emerald-500" /> {evt.location}
-                          </p>
-                        </div>
+                    {loading ? (
+                      <div className="h-full flex items-center justify-center">
+                        <FaSpinner className="animate-spin text-slate-400 w-5 h-5" />
                       </div>
-                    ))}
+                    ) : eventsList.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                        <FaCalendarAlt className="w-8 h-8 text-slate-300 mb-2" />
+                        <p className="text-xs font-bold text-slate-500">No upcoming events found</p>
+                        <p className="text-[11px] text-slate-400">Scheduled events will appear here.</p>
+                      </div>
+                    ) : (
+                      eventsList.map((evt) => {
+                        const eventCategory = evt.category || evt.eventType || evt.event_type || 'General';
+                        const eventDate = evt.date || evt.startDate || evt.start_date || 'TBD';
+                        const eventTime = evt.time || evt.startTime || evt.start_time || 'All Day';
+                        const eventLocation = evt.location || evt.venue || 'Main Sanctuary';
+
+                        return (
+                          <div 
+                            key={evt.id} 
+                            className="p-2.5 bg-slate-50 hover:bg-slate-100/90 rounded-xl border border-slate-200 transition flex items-center justify-between gap-2"
+                          >
+                            <div className="space-y-0.5 min-w-0">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                                {eventCategory}
+                              </span>
+                              <h4 className="text-xs font-bold text-slate-900 leading-snug truncate">{evt.title}</h4>
+                              <div className="flex items-center gap-2 text-[11px] text-slate-500 font-normal truncate">
+                                <span className="flex items-center gap-1 shrink-0">
+                                  <FaCalendarAlt className="w-2.5 h-2.5 text-slate-400" /> {eventDate}
+                                </span>
+                                <span className="flex items-center gap-1 truncate">
+                                  <FaClock className="w-2.5 h-2.5 text-slate-400" /> {eventTime}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <p className="text-[11px] font-medium text-slate-600 flex items-center gap-1 justify-end">
+                                <FaMapMarkerAlt className="w-2.5 h-2.5 text-emerald-500" /> {eventLocation}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
 
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between shrink-0">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Overview</span>
                     <button 
-                      onClick={() => setActiveTab('pulpit')}
+                      onClick={() => setActiveTab('departments')}
                       className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
                     >
-                      View Calendar <FaArrowRight className="w-3 h-3" />
+                      View All <FaArrowRight className="w-3 h-3" />
                     </button>
                   </div>
                 </div>
 
-                {/* GRAPH MODULE (3 COLS WIDE) */}
+                {/* GRAPH MODULE */}
                 <div className="lg:col-span-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col h-full min-h-0">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-1 shrink-0">
                     <div>
@@ -379,7 +353,7 @@ const PastorDashboard = () => {
 
               </div>
 
-              {/* TIER 3: EXPANDED ARCHIVE CARDS HEIGHT */}
+              {/* TIER 3: RECORDS AND ARCHIVES MODULES */}
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs shrink-0">
                 <div className="mb-2">
                   <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">Records and Archives</h2>
@@ -420,35 +394,33 @@ const PastorDashboard = () => {
           )}
 
           {/* OTHER TAB MODULES */}
-          {
-          activeTab === 'membership' ? (
+          {activeTab === 'membership' ? (
             <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-4">
               <MembershipRecords />
             </div>
-          ) :
-
-          activeTab === 'dedications' ? (
+          ) : activeTab === 'dedications' ? (
             <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-4">
               <PastorChildDedications />
             </div>
-          ) :
-
-          activeTab === 'meetings' ? (
+          ) : activeTab === 'meetings' ? (
             <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-4">
               <PastorMeetingRecords />
             </div>
-          ) :
-
-          activeTab === 'weddings' ? (
+          ) : activeTab === 'weddings' ? (
             <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-4">
               <PastorWeddingsAndNotifications />
             </div>
-          ) :
-          
-          activeTab !== 'dashboard' && (
+          ) : activeTab === 'departments' ? (
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-4">
+              <PastorDepartments />
+            </div>
+          ) : activeTab === 'communication' ? (
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-4">
+              <PastorCommunication />
+            </div>
+          ) : activeTab !== 'dashboard' && (
             <div className="p-6 bg-white rounded-2xl shadow-sm border border-slate-200">
               <h2 className="text-xl font-black text-slate-800 uppercase">{activeTab} Workspace</h2>
-             
             </div>
           )}
 

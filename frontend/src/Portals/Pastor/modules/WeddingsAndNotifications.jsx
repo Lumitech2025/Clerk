@@ -139,11 +139,9 @@ const PastorWeddingsAndNotifications = () => {
         <div className="print:hidden flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-xs">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 flex items-center gap-2.5 tracking-tight">
-              <Heart className="text-rose-500" size={30} /> Weddings & Marriage Notifications
+              <Heart className="text-rose-500" size={30} /> Weddings Notifications
             </h1>
-            <p className="text-xs font-bold text-slate-500 mt-1">
-              Pastoral Portal • Read-only Access & Officiating Registry
-            </p>
+            
           </div>
 
           <div className="flex items-center gap-3">
@@ -153,7 +151,7 @@ const PastorWeddingsAndNotifications = () => {
               title="Refresh Registry"
             >
               <RefreshCw size={16} className={loading ? 'animate-spin text-emerald-600' : ''} />
-              <span>Refresh</span>
+              
             </button>
           </div>
         </div>
@@ -238,8 +236,8 @@ const PastorWeddingsAndNotifications = () => {
         <div className="print:hidden bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
           <div className="p-6 border-b border-slate-100 flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Marriage Notifications & Officiating Roster</h2>
-              <p className="text-sm font-medium text-slate-500 mt-0.5">Comprehensive view of couple details, pastoral counseling, and board status</p>
+              <h2 className="text-lg font-bold text-slate-900">Wedding Notifications</h2>
+              
             </div>
             <span className="text-xs font-bold bg-slate-100 text-slate-700 px-3.5 py-1.5 rounded-lg">
               {filteredWeddings.length} Total Records

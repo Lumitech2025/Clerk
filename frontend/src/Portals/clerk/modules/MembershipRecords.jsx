@@ -251,9 +251,7 @@ export default function MembershipRecords() {
             </span>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Membership Records & Registers</h1>
           </div>
-          <p className="text-xs font-normal text-slate-500 mt-1">
-            Official clerk registry for Adventist Church rolls, transfers, baptisms, and professions of faith.
-          </p>
+          
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">

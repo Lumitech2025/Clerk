@@ -32,17 +32,23 @@ const PastorSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Pastoral
       label: 'Meetings Records', 
       icon: <ClipboardList size={22} /> 
     },
+
+    { 
+      id: 'departments', 
+      label: 'Departments', 
+      icon: <BookOpen size={22} /> 
+    },
+    { 
+      id: 'communication', 
+      label: 'Communication Hub', 
+      icon: <Heart size={22} /> 
+    },
     { 
       id: 'weddings', 
       label: 'Weddings & Notifs', 
       icon: <Heart size={22} /> 
     },
   
-    { 
-      id: 'pulpit', 
-      label: 'Pulpit & Worship', 
-      icon: <BookOpen size={22} /> 
-    },
     { 
       id: 'reports', 
       label: 'Conference Reports', 

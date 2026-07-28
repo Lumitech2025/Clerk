@@ -1,4 +1,5 @@
 from django.contrib import admin
+
 from .models import (
     MemberRecord,
     BaptismRecord,
@@ -10,8 +11,12 @@ from .models import (
     MeetingAttendance,
     AttendanceSheetUpload,
     AbsenceApology,
-    WeddingNotification
+    WeddingNotification,
+    HolyCommunion,
+    Event
 )
+
+
 
 
 # ==========================================
@@ -335,6 +340,80 @@ class WeddingNotificationAdmin(admin.ModelAdmin):
             )
         }),
     )
+
+
+@admin.register(HolyCommunion)
+class HolyCommunionAdmin(admin.ModelAdmin):
+    list_display = (
+        'year', 
+        'quarter', 
+        'service_date', 
+        'members_present', 
+        'recorded_by', 
+        'created_at'
+    )
+    list_filter = ('year', 'quarter', 'service_date')
+    search_fields = ('year', 'quarter', 'remarks', 'recorded_by__username', 'recorded_by__first_name')
+    date_hierarchy = 'service_date'
+    readonly_fields = ('created_at', 'updated_at')
+    
+    fieldsets = (
+        ('Quarter & Service Details', {
+            'fields': ('year', 'quarter', 'service_date', 'members_present')
+        }),
+        ('Attendance File & Remarks', {
+            'fields': ('file', 'remarks')
+        }),
+        ('System Metadata', {
+            'fields': ('recorded_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not change and not obj.recorded_by:
+            obj.recorded_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+
+
+@admin.register(Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = (
+        'title', 
+        'event_type', 
+        'start_date', 
+        'end_date', 
+        'is_multi_day', 
+        'target_audience', 
+        'status', 
+        'created_by'
+    )
+    list_filter = ('event_type', 'target_audience', 'status', 'is_multi_day', 'is_all_day', 'start_date')
+    search_fields = ('title', 'venue', 'organizer', 'groom_name', 'bride_name', 'description')
+    date_hierarchy = 'start_date'
+    
+    fieldsets = (
+        ('General Information', {
+            'fields': ('title', 'event_type', 'target_audience', 'status', 'description')
+        }),
+        ('Schedule', {
+            'fields': (('is_multi_day', 'is_all_day'), ('start_date', 'end_date'), ('start_time', 'end_time'))
+        }),
+        ('Logistics', {
+            'fields': ('venue', 'organizer')
+        }),
+        ('Wedding Details (Conditional)', {
+            'classes': ('collapse',),
+            'fields': ('groom_name', 'bride_name'),
+        }),
+        ('System Metadata', {
+            'fields': ('created_by', 'created_at', 'updated_at')
+        }),
+    )
+
+    readonly_fields = ('created_at', 'updated_at')
 
 try:
     admin.site.unregister(MeetingAttendance)

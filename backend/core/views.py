@@ -1,76 +1,160 @@
 # core/views.py
 
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status, permissions, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import viewsets, filters
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
 from django.db.models import Count, Q
-from rest_framework.pagination import PageNumberPagination
 from django.db.models.functions import TruncMonth
 
+from rest_framework import viewsets, permissions, filters
+from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Q
 
 
-
-from .models import MemberRecord, BaptismRecord, ChildDedication
-from .serializers import DashboardAnalyticsSerializer
-
-
-from authentication.permissions import (
-    IsChurchClerk,
-    IsLeadershipReadOnlyOrClerkWrite,
-    IsBoardMemberOrReadOnly,
-    IsCommunicationOrClerk,
-    get_user_role
+# Models
+from .models import (
+    MemberRecord, BaptismRecord, ChildDedication,
+    WeddingNotification, Department, DepartmentalReport,
+    Bulletin, Meeting, MeetingAttendance, AttendanceSheetUpload,
+    AbsenceApology, HolyCommunion, Event
 )
 
-from .models import WeddingNotification, BaptismRecord, ChildDedication, Department, DepartmentalReport, Bulletin, Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, MemberRecord
-from .serializers import WeddingNotificationSerializer, BaptismSerializer, ChildDedicationSerializer, DepartmentSerializer, DepartmentalReportSerializer,  BulletinSerializer, MeetingSerializer, MeetingAttendanceSerializer, AttendanceSheetUploadSerializer, AbsenceApologySerializer, MemberRecordSerializer
+# Serializers
+from .serializers import (
+    MemberRecordSerializer, BaptismSerializer, ChildDedicationSerializer,
+    WeddingNotificationSerializer, DepartmentSerializer, DepartmentalReportSerializer,
+    BulletinSerializer, MeetingSerializer, MeetingAttendanceSerializer,
+    AttendanceSheetUploadSerializer, AbsenceApologySerializer, DashboardAnalyticsSerializer, HolyCommunionSerializer, EventSerializer
+)
+
+# Services
 from .services import (
     send_welcome_baptism_notifications, 
     send_certificate_reminder_notifications,
     send_welcome_dedication_notifications,
     send_dedication_certificate_reminder_notifications
-    
 )
 
+# Centralized Role Extraction Helper
+def get_user_role(user):
+    """
+    Safely retrieves and normalizes the user's designation string 
+    from the Newlife CCIS custom User model.
+    """
+    if not user or not user.is_authenticated:
+        return ""
+    
+    # Primary check: user.designation (from your models.py)
+    # Fallback check: user.role (in case of legacy/profile models)
+    designation = (
+        getattr(user, 'designation', None) 
+        or getattr(user, 'role', None) 
+        or getattr(getattr(user, 'profile', None), 'role', '')
+    )
+    
+    return str(designation).upper().strip()
+
+# --- CUSTOM PERMISSION CLASSES ---
+
+class IsChurchClerk(permissions.BasePermission):
+    """Restricts write access strictly to Church Clerks and Superusers."""
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+        return get_user_role(request.user) in ['CLERK', 'CHURCH_CLERK']
+
+
+class IsLeadershipReadOnlyOrClerkWrite(permissions.BasePermission):
+    """
+    Clerk: Full Read/Write
+    Pastors/Elders: Read-Only
+    Others: Denied
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+
+        role = get_user_role(request.user)
+        if role in ['CLERK', 'CHURCH_CLERK']:
+            return True
+        if request.method in permissions.SAFE_METHODS and role in ['PASTOR', 'ELDER']:
+            return True
+        return False
+
+
+class IsCommunicationOrClerk(permissions.BasePermission):
+    """Allows Clerks and Communication Team to publish updates and bulletins."""
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+
+        role = get_user_role(request.user)
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return role in ['CLERK', 'CHURCH_CLERK', 'COMMUNICATION']
+
+
+class IsClerkOrPastorOrElder(permissions.BasePermission):
+    """Full pastoral & governance oversight permission class."""
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+        if request.user.is_superuser:
+            return True
+
+        role = get_user_role(request.user)
+        allowed = ['CLERK', 'CHURCH_CLERK', 'PASTOR', 'ELDER', 'ADMIN']
+        return role in allowed or request.user.groups.filter(name__iregex=r'^(clerk|pastor|elder|admin)s?$').exists()
+
+
+# --- PAGINATION ---
+
+class StandardResultsSetPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+# --- VIEWSETS ---
+
+class MemberRecordViewSet(viewsets.ModelViewSet):
+    """Central Membership Roll."""
+    queryset = MemberRecord.objects.all()
+    serializer_class = MemberRecordSerializer
+    permission_classes = [IsLeadershipReadOnlyOrClerkWrite]
+    pagination_class = StandardResultsSetPagination
+    
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['year_joined', 'joining_method', 'gender', 'transfer_status', 'is_active']
+    search_fields = ['full_name', 'phone_number', 'email', 'origin_church']
+    ordering_fields = ['full_name', 'year_joined', 'created_at']
+
+
 class BaptismViewSet(viewsets.ModelViewSet):
-    """
-    API ViewSet for managing official church baptism records.
-    Only authorized administrative personnel (Clerk, Pastors, Elders) 
-    can manage and trigger lifecycle notifications.
-    """
+    """Official church baptism records."""
     queryset = BaptismRecord.objects.all().order_by('-created_at')
     serializer_class = BaptismSerializer
-    
-    # 1. Secure viewset with authentication and RBAC permissions
     permission_classes = [IsAuthenticated, IsLeadershipReadOnlyOrClerkWrite]
 
     def perform_create(self, serializer):
-        """
-        Saves the record ONCE with the authenticated creator, 
-        then dispatches the welcome notification via background service.
-        """
-        # Save instance and assign creator in a single DB write
         instance = serializer.save(created_by=self.request.user)
-        
-        # Trigger welcome notification service
         send_welcome_baptism_notifications(instance)
 
     @action(detail=True, methods=['post'], url_path='send-reminder', permission_classes=[IsAuthenticated, IsChurchClerk])
     def send_reminder(self, request, pk=None):
-        """
-        Custom endpoint triggered when Clerk clicks "Send Reminder" button on frontend.
-        Endpoint: POST /api/baptisms/{id}/send-reminder/
-        """
         baptism = self.get_object()
-        
-        # Trigger notification service
         send_certificate_reminder_notifications(baptism)
-
         return Response(
             {"message": f"Reminder successfully sent to {baptism.full_name} via SMS and Email."},
             status=status.HTTP_200_OK
@@ -78,51 +162,97 @@ class BaptismViewSet(viewsets.ModelViewSet):
 
 
 class ChildDedicationViewSet(viewsets.ModelViewSet):
-    queryset = ChildDedication.objects.all()
+    """Child Dedications registry."""
+    queryset = ChildDedication.objects.all().order_by('-created_at')
     serializer_class = ChildDedicationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'create']:
+            return [IsAuthenticated()]
+        return [IsClerkOrPastorOrElder()]
 
     def get_queryset(self):
-        queryset = ChildDedication.objects.all()
-        search = self.request.query_params.get('search', None)
-        status_param = self.request.query_params.get('status', None)
+        user = self.request.user
+        role = get_user_role(user)
+        base_qs = ChildDedication.objects.all()
 
-        if search:
-            queryset = queryset.filter(
-                child_name__icontains=search
-            ) | queryset.filter(
-                father_name__icontains=search
-            ) | queryset.filter(
-                mother_name__icontains=search
-            ) | queryset.filter(
-                officiating_pastor__icontains=search
-            ) | queryset.filter(
-                phone__icontains=search
-            )
+        if user.is_superuser or role in ['CLERK', 'CHURCH_CLERK', 'PASTOR', 'ELDER']:
+            search = self.request.query_params.get('search', None)
+            status_param = self.request.query_params.get('status', None)
 
-        if status_param and status_param != 'All':
-            queryset = queryset.filter(status=status_param)
+            if search:
+                base_qs = base_qs.filter(
+                    Q(child_name__icontains=search) |
+                    Q(father_name__icontains=search) |
+                    Q(mother_name__icontains=search) |
+                    Q(officiating_pastor__icontains=search) |
+                    Q(phone__icontains=search)
+                )
 
-        return queryset
+            if status_param and status_param != 'All':
+                base_qs = base_qs.filter(status=status_param)
+
+            return base_qs
+
+        # Regular members see dedications they submitted or are associated with
+        return base_qs.filter(Q(submitted_by=user) | Q(parent_email=user.email)).distinct()
 
     def perform_create(self, serializer):
-        """Automatically trigger welcoming notification when a record is created."""
         dedication = serializer.save()
         send_welcome_dedication_notifications(dedication)
 
-    @action(detail=True, methods=['post'], url_path='send-reminder')
+    @action(detail=True, methods=['post'], url_path='send-reminder', permission_classes=[IsClerkOrPastorOrElder])
     def send_reminder(self, request, pk=None):
-        """Action endpoint to send certificate pickup notifications."""
         dedication = self.get_object()
-        
-        # Trigger SMS & Email messaging service
         send_dedication_certificate_reminder_notifications(dedication)
-
         return Response({
             "message": f"Reminder notifications dispatched to parents of {dedication.child_name}."
         }, status=status.HTTP_200_OK)
 
+
+class WeddingNotificationViewSet(viewsets.ModelViewSet):
+    """Marriage notifications and officiating roster."""
+    serializer_class = WeddingNotificationSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'create']:
+            permission_classes = [IsAuthenticated]
+        else:
+            permission_classes = [IsClerkOrPastorOrElder]
+        return [permission() for permission in permission_classes]
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return WeddingNotification.objects.none()
+
+        role = get_user_role(user)
+        leader_roles = ['CLERK', 'CHURCH_CLERK', 'PASTOR', 'ELDER', 'ADMIN']
+
+        is_leader = (
+            user.is_superuser 
+            or role in leader_roles 
+            or user.groups.filter(name__iregex=r'^(clerk|pastor|elder|admin)s?$').exists()
+        )
+
+        base_qs = WeddingNotification.objects.select_related('submitted_by').all()
+
+        if is_leader:
+            return base_qs.order_by('-id')
+
+        return base_qs.filter(submitted_by=user).order_by('-id')
+
+    def perform_create(self, serializer):
+        if self.request.user.is_authenticated:
+            serializer.save(submitted_by=self.request.user)
+        else:
+            serializer.save()
+
+
 class DepartmentViewSet(viewsets.ModelViewSet):
+    """Church departments master list."""
     queryset = Department.objects.all()
     serializer_class = DepartmentSerializer
     permission_classes = [IsAuthenticated]
@@ -133,6 +263,7 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 
 
 class DepartmentalReportViewSet(viewsets.ModelViewSet):
+    """Quarterly and monthly departmental reports."""
     queryset = DepartmentalReport.objects.all()
     serializer_class = DepartmentalReportSerializer
     permission_classes = [IsAuthenticated]
@@ -142,21 +273,31 @@ class DepartmentalReportViewSet(viewsets.ModelViewSet):
     search_fields = ['title', 'department__name']
     ordering_fields = ['date', 'uploaded_at']
 
+    def get_queryset(self):
+        user = self.request.user
+        role = get_user_role(user)
+        base_qs = DepartmentalReport.objects.all()
+
+        if user.is_superuser or role in ['CLERK', 'CHURCH_CLERK', 'PASTOR', 'ELDER']:
+            return base_qs
+
+        if role == 'DEPARTMENT_LEADER':
+            return base_qs.filter(department__leader=user)
+
+        return DepartmentalReport.objects.none()
 
 
 class BulletinViewSet(viewsets.ModelViewSet):
-    queryset = Bulletin.objects.all()
+    """Weekly Sabbath bulletins."""
+    queryset = Bulletin.objects.all().order_by('-sabbath_date')
     serializer_class = BulletinSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsCommunicationOrClerk]
 
     def perform_create(self, serializer):
         serializer.save(uploaded_by=self.request.user)
 
     @action(detail=True, methods=['get'])
     def whatsapp_payload(self, request, pk=None):
-        """
-        Returns pre-formatted text payload and document URL for single or multi-group sharing.
-        """
         bulletin = self.get_object()
         formatted_date = bulletin.sabbath_date.strftime('%A, %B %d, %Y')
         file_url = request.build_absolute_uri(bulletin.file.url) if bulletin.file else ""
@@ -178,9 +319,6 @@ class BulletinViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def mark_whatsapp_sent(self, request, pk=None):
-        """
-        Call this endpoint after dispatching via WhatsApp API/Web.
-        """
         bulletin = self.get_object()
         bulletin.whatsapp_sent = True
         bulletin.whatsapp_sent_at = timezone.now()
@@ -188,11 +326,11 @@ class BulletinViewSet(viewsets.ModelViewSet):
         return Response({'status': 'marked as sent', 'whatsapp_sent_at': bulletin.whatsapp_sent_at})
 
 
-
-
 class MeetingViewSet(viewsets.ModelViewSet):
+    """Church Business & Board Meetings."""
     queryset = Meeting.objects.all().order_by('-date')
     serializer_class = MeetingSerializer
+    permission_classes = [IsClerkOrPastorOrElder]
 
     @action(detail=True, methods=['get'])
     def attendance_summary(self, request, pk=None):
@@ -215,7 +353,7 @@ class MeetingViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def board_attendance_matrix(self, request):
-        year = request.query_params.get('year', 2026)
+        year = request.query_params.get('year', timezone.now().year)
         members = MeetingAttendance.objects.filter(meeting__date__year=year)\
             .values('member_name', 'department__name')\
             .annotate(
@@ -243,18 +381,19 @@ class MeetingViewSet(viewsets.ModelViewSet):
 class MeetingAttendanceViewSet(viewsets.ModelViewSet):
     queryset = MeetingAttendance.objects.all().order_by('-recorded_at')
     serializer_class = MeetingAttendanceSerializer
+    permission_classes = [IsClerkOrPastorOrElder]
 
 
 class AttendanceSheetUploadViewSet(viewsets.ModelViewSet):
     queryset = AttendanceSheetUpload.objects.all().order_by('-uploaded_at')
     serializer_class = AttendanceSheetUploadSerializer
+    permission_classes = [IsClerkOrPastorOrElder]
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         sheet_instance = serializer.save()
 
-        # Mark processed and auto-calculate summary statistics for response
         sheet_instance.processed = True
         sheet_instance.save()
 
@@ -274,12 +413,13 @@ class AttendanceSheetUploadViewSet(viewsets.ModelViewSet):
 
 
 class AbsenceApologyViewSet(viewsets.ModelViewSet):
+    """Apologies for board/business meeting absences."""
     queryset = AbsenceApology.objects.all().order_by('-submitted_at')
     serializer_class = AbsenceApologySerializer
+    permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
         apology = serializer.save()
-        # Automatically register or update the member's status as 'AA' (Absent with Apology)
         MeetingAttendance.objects.update_or_create(
             meeting=apology.meeting,
             member_name=apology.member_name,
@@ -290,73 +430,22 @@ class AbsenceApologyViewSet(viewsets.ModelViewSet):
         )
 
 
-class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 10
-    page_size_query_param = 'page_size'
-    max_page_size = 100
-
-class IsClerkOrPastorOrElder(permissions.BasePermission):
-    """Custom Permission to enforce Role-Based Access Control."""
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-            
-        # 1. Superusers always have full access
-        if request.user.is_superuser:
-            return True
-            
-        # 2. Get role safely (from Custom User or Profile model)
-        user_role = getattr(request.user, 'role', None)
-        
-        # If your role field is on a related profile model instead, uncomment below:
-        # if user_role is None and hasattr(request.user, 'profile'):
-        #     user_role = getattr(request.user.profile, 'role', None)
-
-        if user_role in ['clerk', 'pastor', 'elder']:
-            return True
-            
-        if request.method in permissions.SAFE_METHODS and user_role in ['communication', 'department_leader', 'member']:
-            return True
-
-        return False
-
-class MemberRecordViewSet(viewsets.ModelViewSet):
-    """
-    Central Membership Roll.
-    - Write operations restricted to Clerk.
-    - Read operations allowed for Clerk, Pastors, and Elders.
-    """
-    queryset = MemberRecord.objects.all()
-    serializer_class = MemberRecordSerializer
-    permission_classes = [IsLeadershipReadOnlyOrClerkWrite]
-    
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['year_joined', 'joining_method', 'gender', 'transfer_status', 'is_active']
-    search_fields = ['full_name', 'phone_number', 'email', 'origin_church']
-    ordering_fields = ['full_name', 'year_joined', 'created_at']
-
 class DashboardAnalyticsViewSet(viewsets.ViewSet):
-    """
-    ViewSet to deliver core dashboard summary metrics & trend analytics.
-    Endpoint: GET /api/analytics/
-    """
-    permission_classes = [permissions.IsAuthenticated, IsClerkOrPastorOrElder]
+    """Deliver core dashboard summary metrics & trend analytics."""
+    permission_classes = [IsClerkOrPastorOrElder]
 
     def list(self, request):
         current_year = timezone.now().year
 
-        # 1. KPI Cards
         total_active_members = MemberRecord.objects.filter(is_active=True).count()
         baptisms_ytd = BaptismRecord.objects.filter(baptism_date__year=current_year).count()
         child_dedications_total = ChildDedication.objects.count()
         
-        # Pending transfers (transfers still undergoing board or reading process)
         pending_transfers = MemberRecord.objects.filter(
             ~Q(transfer_status='2nd Reading / Transfer Granted'),
             transfer_status__isnull=False
         ).count()
 
-        # 2. Baptism Trends (Monthly count for the current year)
         baptism_months = (
             BaptismRecord.objects.filter(baptism_date__year=current_year)
             .annotate(month=TruncMonth('baptism_date'))
@@ -365,14 +454,12 @@ class DashboardAnalyticsViewSet(viewsets.ViewSet):
             .order_by('month')
         )
         
-        # Format monthly data into array or key-value map for frontend charts
         monthly_baptism_data = [0] * 12
         for entry in baptism_months:
             if entry['month']:
                 month_idx = entry['month'].month - 1
                 monthly_baptism_data[month_idx] = entry['count']
 
-        # 3. Membership Transfers (Incoming vs Outgoing breakdown)
         incoming_transfers = MemberRecord.objects.filter(transfer_type='Transfer In').count()
         outgoing_transfers = MemberRecord.objects.filter(transfer_type='Transfer Out').count()
 
@@ -395,65 +482,103 @@ class DashboardAnalyticsViewSet(viewsets.ViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class IsChurchLeaderOrClerk(permissions.BasePermission):
+
+
+class HolyCommunionViewSet(viewsets.ModelViewSet):
     """
-    Custom permission for Church Clerks, Pastors, and Elders.
-    Assumes role attributes or group memberships on User model.
+    API ViewSet for viewing, creating, updating, and deleting Holy Communion quarterly records.
+    Supports file uploads (`MultipartParser`) and filtering by `year` and `quarter`.
+    """
+    queryset = HolyCommunion.objects.all()
+    serializer_class = HolyCommunionSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        
+        # Extract query parameters sent from React frontend
+        year = self.request.query_params.get('year', None)
+        quarter = self.request.query_params.get('quarter', None)
+
+        if year:
+            queryset = queryset.filter(year=year)
+        if quarter and quarter != 'ALL':
+            queryset = queryset.filter(quarter=quarter)
+
+        return queryset
+
+    def perform_create(self, serializer):
+        # Automatically attach logged-in clerk to the record
+        if self.request.user and self.request.user.is_authenticated:
+            serializer.save(recorded_by=self.request.user)
+        else:
+            serializer.save()
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+
+class RoleBasedEventAccessPermission(permissions.BasePermission):
+    """
+    Custom Permission:
+    - Anyone authenticated can view events allowed by their role.
+    - Only Clerks, Pastors, and Admins can create/edit/delete events.
     """
     def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
+        if request.method in permissions.SAFE_METHODS:
+            return request.user.is_authenticated
+
+        user = request.user
+        user_role = getattr(user, 'role', None)  # Assumes custom User model with role field
         
-        # Superusers always have full access
-        if request.user.is_superuser:
-            return True
+        return (
+            user.is_staff or 
+            user.is_superuser or 
+            user_role in ['CHURCH_CLERK', 'PASTOR']
+        )
 
-        user_role = getattr(request.user, 'role', '').upper()
-        allowed_roles = ['CLERK', 'PASTOR', 'ELDER']
-        return user_role in allowed_roles or request.user.groups.filter(name__in=allowed_roles).exists()
 
-class WeddingNotificationViewSet(viewsets.ModelViewSet):
-    serializer_class = WeddingNotificationSerializer
-    parser_classes = (MultiPartParser, FormParser, JSONParser)
-
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve', 'create']:
-            # Members and Leaders can view lists, single records, and submit forms
-            permission_classes = [permissions.IsAuthenticated]
-        else:
-            # Updating (PUT/PATCH) or Deleting is restricted to Clerks, Pastors, and Elders
-            permission_classes = [IsChurchLeaderOrClerk]
-        return [permission() for permission in permission_classes]
+class EventViewSet(viewsets.ModelViewSet):
+    serializer_class = EventSerializer
+    permission_classes = [RoleBasedEventAccessPermission]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    
+    filterset_fields = ['event_type', 'target_audience', 'status', 'is_multi_day']
+    search_fields = ['title', 'description', 'venue', 'organizer', 'groom_name', 'bride_name']
+    ordering_fields = ['start_date', 'start_time', 'created_at']
+    ordering = ['start_date', 'start_time']
 
     def get_queryset(self):
         user = self.request.user
-        if not user.is_authenticated:
-            return WeddingNotification.objects.none()
 
-        # Sanitize and normalize user role
-        user_role = str(getattr(user, 'role', '')).upper().strip()
-        
-        # Define allowed leadership role identifiers
-        leader_roles = ['CLERK', 'CHURCH_CLERK', 'PASTOR', 'ELDER', 'ADMIN']
+        # Superusers and Clerks/Pastors see everything
+        if user.is_staff or user.is_superuser:
+            return Event.objects.all()
 
-        # Check if user is superuser, has a leadership role field, or belongs to a leadership auth group
-        is_leader = (
-            user.is_superuser 
-            or user_role in leader_roles 
-            or user.groups.filter(name__iregex=r'^(clerk|church clerk|pastor|elder|admin)$').exists()
-        )
+        user_role = getattr(user, 'role', 'MEMBER')
 
-        # Base queryset with query optimization
-        base_qs = WeddingNotification.objects.select_related('submitted_by').all()
+        # Define visibility mapping based on user role
+        allowed_audiences = [Event.TargetAudience.ALL]
 
-        if is_leader:
-            return base_qs.order_by('-id')
+        if user_role in ['CHURCH_CLERK', 'PASTOR']:
+            return Event.objects.all()
+        elif user_role == 'ELDER':
+            allowed_audiences.extend([Event.TargetAudience.ELDERS, Event.TargetAudience.BOARD, Event.TargetAudience.LEADERS])
+        elif user_role == 'BOARD_MEMBER':
+            allowed_audiences.extend([Event.TargetAudience.BOARD, Event.TargetAudience.LEADERS])
+        elif user_role == 'DEPARTMENT_LEADER':
+            allowed_audiences.append(Event.TargetAudience.LEADERS)
 
-        # Regular members see notifications they submitted
-        return base_qs.filter(submitted_by=user).order_by('-id')
+        # Filter timeframe if specified
+        timeframe = self.request.query_params.get('timeframe')
+        qs = Event.objects.filter(target_audience__in=allowed_audiences)
+
+        if timeframe == 'upcoming':
+            from django.utils import timezone
+            qs = qs.filter(start_date__gte=timezone.now().date())
+
+        return qs
 
     def perform_create(self, serializer):
-        if self.request.user.is_authenticated:
-            serializer.save(submitted_by=self.request.user)
-        else:
-            serializer.save()
+        serializer.save(created_by=self.request.user)

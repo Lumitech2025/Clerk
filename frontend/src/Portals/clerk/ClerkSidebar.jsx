@@ -37,6 +37,19 @@ const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Church Cl
       label: 'Baptisms', 
       icon: <Droplets size={22} />
     },
+
+    { 
+      id: 'events', 
+      label: 'Upcoming Events', 
+      icon: <ClipboardList size={22} />
+    },
+
+    { 
+      id: 'holycommunion', 
+      label: 'Holy Communion', 
+      icon: <Droplets size={22} />
+    },
+
     { 
       id: 'dedications', 
       label: 'Child Dedications', 
@@ -60,7 +73,7 @@ const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Church Cl
     { 
       id: 'weddings', 
       label: 'WEDDINGS & NOTIFS', 
-      icon: <Heart size={22} />, // FIXED: Wrapped in JSX element syntax
+      icon: <Heart size={22} />, 
     },
     { 
       id: 'conference-reports', 
@@ -131,7 +144,7 @@ const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Church Cl
           className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-2xl text-rose-400 bg-rose-500/10 hover:bg-rose-500 hover:text-white font-black text-sm uppercase tracking-wider transition-all duration-200 border border-rose-500/20 cursor-pointer shadow-sm"
         >
           <LogOut size={20} />
-          <span>Sign Out</span>
+          <span>Log Out</span>
         </button>
       </div>
 

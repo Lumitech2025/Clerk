@@ -81,9 +81,7 @@ export default function MembershipRecords() {
               Membership Records & Registers
             </h1>
           </div>
-          <p className="text-xs font-normal text-slate-500 mt-1">
-            Centralized portal for viewing church membership rolls, transfers, baptisms, and professions of faith.
-          </p>
+          
         </div>
       </div>
 

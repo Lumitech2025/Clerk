@@ -156,7 +156,7 @@ const PastorMeetingRecords = () => {
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 print:hidden">
         <div>
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Meetings & Attendance Records</h1>
-          <p className="text-xs font-bold text-slate-500 mt-1">Pastoral Portal • Read-only Access & Executive Review</p>
+         
         </div>
 
         <div className="flex bg-slate-200/80 p-1.5 rounded-2xl border border-slate-300/80">
@@ -177,7 +177,7 @@ const PastorMeetingRecords = () => {
             }`}
           >
             <Users size={18} />
-            <span>Attendance Log Matrix</span>
+            <span>Attendance Log</span>
           </button>
 
           <button
@@ -187,7 +187,7 @@ const PastorMeetingRecords = () => {
             }`}
           >
             <FolderArchive size={18} />
-            <span>Document Vault</span>
+            <span>Documents</span>
           </button>
         </div>
       </div>
@@ -235,7 +235,7 @@ const PastorMeetingRecords = () => {
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden print:hidden">
           <div className="p-6 border-b border-slate-100">
             <h2 className="text-lg font-bold text-slate-900">Official Meeting Records</h2>
-            <p className="text-sm font-semibold text-slate-500 mt-1">Click on any row to open details, preview files, download documents, and view attendance logs.</p>
+            
           </div>
 
           <div className="overflow-x-auto">
@@ -322,7 +322,7 @@ const PastorMeetingRecords = () => {
         <div id="printable-sheet" className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden p-6">
           <div className="text-center border-b-2 border-slate-900 pb-5 mb-6">
             <h2 className="text-xl font-black text-slate-900 uppercase">NEWLIFE ADVENTIST CHURCH, 5TH NGONG AVENUE, NAIROBI</h2>
-            <h3 className="text-lg font-bold text-slate-700 uppercase mt-1">2026 CHURCH BOARD ATTENDANCE TRACKER</h3>
+            <h3 className="text-lg font-bold text-slate-700 uppercase mt-1">CHURCH BOARD ATTENDANCE TRACKER</h3>
           </div>
 
           <div className="overflow-x-auto">

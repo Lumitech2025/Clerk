@@ -6,6 +6,7 @@ import os
 from django.db import models
 from django.contrib.auth import get_user_model
 import uuid
+from django.core.exceptions import ValidationError
 
 
 User = get_user_model()
@@ -467,3 +468,154 @@ class WeddingNotification(models.Model):
 
     def __str__(self):
         return f"{self.applicant_name} & {self.spouse_name} - {self.wedding_date}"
+
+
+
+
+class HolyCommunion(models.Model):
+    QUARTER_CHOICES = [
+        ('Q1', 'Quarter 1'),
+        ('Q2', 'Quarter 2'),
+        ('Q3', 'Quarter 3'),
+        ('Q4', 'Quarter 4'),
+    ]
+
+    year = models.CharField(
+        max_length=4, 
+        default='2026', 
+        db_index=True,
+        help_text="Year of the Holy Communion service (e.g. 2026)"
+    )
+    quarter = models.CharField(
+        max_length=2, 
+        choices=QUARTER_CHOICES, 
+        default='Q1',
+        db_index=True,
+        help_text="Quarter of the church year"
+    )
+    service_date = models.DateField(
+        help_text="Date on which the Holy Communion service was conducted"
+    )
+    members_present = models.PositiveIntegerField(
+        help_text="Total number of members who partook in Holy Communion"
+    )
+    remarks = models.TextField(
+        blank=True, 
+        null=True, 
+        help_text="Optional clerk notes or pastoral service remarks"
+    )
+    file = models.FileField(
+        upload_to='holy_communion_sheets/%Y/',
+        help_text="Scanned attendance roster / signed communion sheet (PDF/DOC)"
+    )
+    recorded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='communion_records',
+        help_text="Clerk who created this entry"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-service_date']
+        verbose_name = 'Holy Communion Record'
+        verbose_name_plural = 'Holy Communion Records'
+        unique_together = ['year', 'quarter']  # Prevents duplicate quarterly entries for the same year
+
+    def __str__(self):
+        return f"Holy Communion - {self.year} {self.quarter} ({self.service_date})"
+
+
+class Event(models.Model):
+    class EventCategory(models.TextChoices):
+        BOARD_MEETING = 'Board Meeting', 'Board Meeting'
+        BUSINESS_MEETING = 'Church Business Meeting', 'Church Business Meeting'
+        BAPTISM = 'Baptism', 'Baptism'
+        CHILD_DEDICATION = 'Child Dedication', 'Child Dedication'
+        WEDDING = 'Wedding', 'Wedding'
+        HOLY_COMMUNION = 'Holy Communion', 'Holy Communion'
+        CAMP_MEETING = 'Camp Meeting', 'Camp Meeting'
+        EVANGELISM = 'Evangelism & Mission', 'Evangelism & Mission'
+        DEPARTMENTAL = 'Departmental Event', 'Departmental Event'
+        GENERAL = 'General Fellowship', 'General Fellowship'
+
+    class TargetAudience(models.TextChoices):
+        ALL = 'ALL', 'All Members & Public'
+        BOARD = 'BOARD', 'Church Board Only'
+        ELDERS = 'ELDERS', 'Elders Only'
+        LEADERS = 'LEADERS', 'Departmental Leaders Only'
+        CLERK_PASTOR = 'CLERK_PASTOR', 'Clerk & Pastors Only'
+
+    class EventStatus(models.TextChoices):
+        UPCOMING = 'Upcoming', 'Upcoming'
+        ONGOING = 'Ongoing', 'Ongoing'
+        COMPLETED = 'Completed', 'Completed'
+        CANCELLED = 'Cancelled', 'Cancelled'
+
+    # Core Event Details
+    title = models.CharField(max_length=255)
+    event_type = models.CharField(max_length=50, choices=EventCategory.choices, default=EventCategory.GENERAL)
+    target_audience = models.CharField(max_length=20, choices=TargetAudience.choices, default=TargetAudience.ALL)
+    status = models.CharField(max_length=20, choices=EventStatus.choices, default=EventStatus.UPCOMING)
+
+    # Schedule Details
+    is_multi_day = models.BooleanField(default=False)
+    start_date = models.DateField()
+    end_date = models.DateField(null=True, blank=True)
+    
+    is_all_day = models.BooleanField(default=False)
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
+
+    # Logistics
+    venue = models.CharField(max_length=255, default='Main Sanctuary')
+    organizer = models.CharField(max_length=255, default='Church Clerk Desk')
+    description = models.TextField(blank=True, default='')
+
+    # Wedding Specific Attributes
+    groom_name = models.CharField(max_length=150, blank=True, default='')
+    bride_name = models.CharField(max_length=150, blank=True, default='')
+
+    # Metadata
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        related_name='created_events'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['start_date', 'start_time']
+        verbose_name = 'Event'
+        verbose_name_plural = 'Events'
+
+    def clean(self):
+        # Validate Multi-day logic
+        if self.is_multi_day and not self.end_date:
+            raise ValidationError({'end_date': 'End date is required for multi-day events.'})
+        
+        if self.end_date and self.end_date < self.start_date:
+            raise ValidationError({'end_date': 'End date cannot be earlier than start date.'})
+
+        # Validate Wedding requirements
+        if self.event_type == self.EventCategory.WEDDING:
+            if not self.groom_name or not self.bride_name:
+                raise ValidationError({
+                    'groom_name': 'Groom name is required for weddings.',
+                    'bride_name': 'Bride name is required for weddings.'
+                })
+
+    def save(self, *args, **kwargs):
+        if not self.is_multi_day:
+            self.end_date = self.start_date
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.title} ({self.start_date})"

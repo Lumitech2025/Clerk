@@ -10,6 +10,8 @@ import Departments from './modules/Departments';
 import Communication from './modules/Communication';
 import MembershipRecords from './modules/MembershipRecords';
 import WeddingsAndNotifications from './modules/WeddingsAndNotifications';
+import HolyCommunion from './modules/HolyCommunion'
+import Events from './modules/Events'
 
 // Icons
 import { 
@@ -365,6 +367,10 @@ const ClerkDashboard = () => {
           {activeTab === 'meetings' && <MeetingsRecords currentUserRole={currentUserRole} />}
           {activeTab === 'departments' && <Departments currentUserRole={currentUserRole} />}
           {activeTab === 'communication' && <Communication currentUserRole={currentUserRole} />}
+          {activeTab === 'holycommunion' && <HolyCommunion currentUserRole={currentUserRole} />}
+          {activeTab === 'events' && <Events currentUserRole={currentUserRole} />}
+
+
 
         </main>
       </div>

@@ -338,7 +338,7 @@ const ChildDedications = ({ currentUserRole = 'Church Clerk' }) => {
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Child Dedication Register</h2>
-            <p className="text-sm font-medium text-slate-500 mt-0.5">Manage infant dedication records and parent notifications</p>
+            
           </div>
           <span className="text-xs font-bold bg-slate-100 text-slate-700 px-3.5 py-1.5 rounded-lg">
             {filteredDedications.length} Total Records

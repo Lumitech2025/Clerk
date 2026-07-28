@@ -83,7 +83,7 @@ const MeetingsRecords = () => {
   const [attendanceEntry, setAttendanceEntry] = useState({
     meetingId: '',
     memberName: '',
-    departmentId: '', // Stores the selected Department ID from DB
+    departmentId: '', 
     status: 'PR',
     arrivalTime: '',
     departureTime: ''
@@ -299,7 +299,7 @@ const MeetingsRecords = () => {
             }`}
           >
             <Users size={18} />
-            <span>Attendance Log Matrix</span>
+            <span>Attendance Log</span>
           </button>
 
           <button
@@ -309,7 +309,7 @@ const MeetingsRecords = () => {
             }`}
           >
             <FolderArchive size={18} />
-            <span>Document Vault</span>
+            <span>Documents</span>
           </button>
         </div>
       </div>
@@ -376,7 +376,7 @@ const MeetingsRecords = () => {
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden print:hidden">
           <div className="p-6 border-b border-slate-100">
             <h2 className="text-lg font-bold text-slate-900">Official Meeting Records</h2>
-            <p className="text-sm font-semibold text-slate-500 mt-1">Click on any row to open details, preview files, download documents, and view attendance logs.</p>
+            
           </div>
 
           <div className="overflow-x-auto">
