@@ -1,0 +1,515 @@
+import React, { useState, useEffect, useCallback, useContext } from 'react';
+import { AuthContext } from '../../context/AuthContext';
+import API from '../../api/api';
+import DepartmentSidebar from './DepartmentSidebar';
+
+// Reusing Pastoral/Departmental Shared Modules
+import PastorDepartments from '../pastor/modules/PastorDepartments';
+import PastorMeetingRecords from '../pastor/modules/MeetingRecords';
+
+// Icons
+import { 
+  FaBuilding, 
+  FaCalendarAlt, 
+  FaHourglassHalf, 
+  FaFolderOpen,
+  FaArrowRight,
+  FaSpinner,
+  FaFileAlt,
+  FaClock,
+  FaMapMarkerAlt,
+  FaPlus,
+  FaCheckCircle
+} from 'react-icons/fa';
+
+import { Upload, X, FileSpreadsheet, Image as ImageIcon } from 'lucide-react';
+
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  Legend,
+  ResponsiveContainer 
+} from 'recharts';
+
+const DepartmentDashboard = () => {
+  const { user, logout } = useContext(AuthContext);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Graph Filter Toggle ('All', 'Events', 'Reports', 'Budgets')
+  const [chartFilter, setChartFilter] = useState('All');
+
+  // Role resolution
+  const currentUserRole = user?.role || user?.designation || 'Department Leader';
+
+  const [departmentMetricsData, setDepartmentMetricsData] = useState([]);
+  const [kpiStats, setKpiStats] = useState({
+    totalDepartments: 0,
+    upcomingEventsCount: 0,
+    pendingProposalsCount: 0,
+    archivedMediaCount: 0,
+  });
+
+  // Upcoming Events State
+  const [eventsList, setEventsList] = useState([]);
+
+  // Upload/Import Modal State
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importType, setImportType] = useState('event_proposal');
+  const [importFile, setImportFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Fetch real analytics and KPI metrics from Django API
+  const fetchDepartmentAnalytics = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [analyticsRes, eventsRes] = await Promise.all([
+        API.get('departments/analytics/').catch((err) => {
+          console.error("Department analytics fetch failed:", err);
+          return null;
+        }),
+        API.get('events/upcoming/').catch((err) => {
+          console.error("Upcoming events fetch failed:", err);
+          return null;
+        })
+      ]);
+
+      // Parse Events
+      let fetchedEvents = [];
+      if (eventsRes?.data) {
+        if (Array.isArray(eventsRes.data)) {
+          fetchedEvents = eventsRes.data;
+        } else if (Array.isArray(eventsRes.data.results)) {
+          fetchedEvents = eventsRes.data.results;
+        }
+      }
+      setEventsList(fetchedEvents);
+
+      // Parse KPI Metrics
+      if (analyticsRes?.data) {
+        const data = analyticsRes.data;
+        setKpiStats({
+          totalDepartments: data.total_departments || 14,
+          upcomingEventsCount: data.upcoming_events_count ?? fetchedEvents.length,
+          pendingProposalsCount: data.pending_board_proposals || 0,
+          archivedMediaCount: data.archived_media_total || 0,
+        });
+
+        if (Array.isArray(data.monthly_department_metrics) && data.monthly_department_metrics.length > 0) {
+          setDepartmentMetricsData(data.monthly_department_metrics);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load Department analytics:', err);
+      setError('Failed to fetch departmental metrics.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchDepartmentAnalytics();
+  }, [fetchDepartmentAnalytics]);
+
+  // Handle Form/File Uploads
+  const handleImportSubmit = async (e) => {
+    e.preventDefault();
+    if (!importFile) return;
+
+    const formData = new FormData();
+    formData.append('file', importFile);
+    formData.append('type', importType);
+
+    try {
+      setUploading(true);
+      await API.post('/departments/upload-record/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert(`Document/Media for ${importType} successfully submitted!`);
+      setIsImportOpen(false);
+      setImportFile(null);
+      fetchDepartmentAnalytics();
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('Failed to upload file. Please verify file format.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Quick Navigation Shortcuts
+  const quickAccessModules = [
+    { id: 1, title: 'Departments & TORs',  targetTab: 'departments' },
+    { id: 2, title: 'Events Calendar',  targetTab: 'events' },
+    { id: 3, title: 'Minutes & Budgets',  targetTab: 'reports' },
+    { id: 4, title: 'Activities & Media Archive',  targetTab: 'archives' }
+  ];
+
+  return (
+    <div className="flex h-screen bg-slate-100 font-['Plus_Jakarta_Sans',sans-serif] antialiased overflow-hidden select-none text-slate-800">
+      
+      {/* SIDEBAR NAVIGATION */}
+      <DepartmentSidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        onLogout={logout} 
+        userRole={currentUserRole}
+      />
+
+      {/* MAIN WORKSPACE CONTAINER */}
+      <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
+        
+        {/* WORKSPACE HEADER / TOP ACTIONS */}
+        <div className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between shrink-0">
+          <div>
+            <h1 className="text-lg font-black text-slate-900 tracking-tight uppercase">Departmental Portal</h1>
+            
+          </div>
+
+          
+        </div>
+
+        {/* WORKSPACE BODY */}
+        <main className="flex-1 p-5 overflow-hidden flex flex-col justify-between gap-4">
+          
+          {/* Error Banner */}
+          {error && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 font-bold text-sm rounded-xl flex items-center justify-between shrink-0">
+              <span>{error}</span>
+              <button onClick={fetchDepartmentAnalytics} className="underline font-extrabold text-rose-800 cursor-pointer hover:text-rose-950">Retry</button>
+            </div>
+          )}
+
+          {/* OVERVIEW & ANALYTICS TAB */}
+          {activeTab === 'dashboard' && (
+            <div className="flex-1 flex flex-col justify-between gap-4 overflow-hidden">
+              
+              {/* TIER 1: ENLARGED KPI CARDS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
+                <StatCard 
+                  title="Active Departments" 
+                  value={loading ? '...' : kpiStats.totalDepartments} 
+                  icon={FaBuilding} 
+                  valueColor="text-emerald-600"
+                  iconBg="bg-emerald-500/10 text-emerald-600"
+                />
+                <StatCard 
+                  title="Upcoming Events" 
+                  value={loading ? '...' : kpiStats.upcomingEventsCount} 
+                  icon={FaCalendarAlt} 
+                  valueColor="text-blue-600"
+                  iconBg="bg-blue-500/10 text-blue-600"
+                />
+                <StatCard 
+                  title="Pending Board Approvals" 
+                  value={loading ? '...' : kpiStats.pendingProposalsCount} 
+                  icon={FaHourglassHalf} 
+                  valueColor="text-amber-600"
+                  iconBg="bg-amber-500/10 text-amber-600"
+                />
+                <StatCard 
+                  title="Archived Media Proofs" 
+                  value={loading ? '...' : kpiStats.archivedMediaCount} 
+                  icon={FaFolderOpen} 
+                  valueColor="text-indigo-600"
+                  iconBg="bg-indigo-500/10 text-indigo-600"
+                />
+              </div>
+
+              {/* TIER 2: ASYMMETRIC GRID */}
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 flex-1 min-h-0">
+                
+                {/* UPCOMING DEPARTMENTAL EVENTS MODULE */}
+                <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col h-full min-h-0">
+                  <div className="flex items-center justify-between mb-3 shrink-0">
+                    <div>
+                      <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Upcoming Departmental Events</h2>
+                    </div>
+                    <span className="text-xs font-black text-emerald-800 bg-emerald-100/80 border border-emerald-300/60 px-3 py-1 rounded-lg uppercase tracking-wider">
+                      {eventsList.length} Scheduled
+                    </span>
+                  </div>
+
+                  {/* Dynamic Events List */}
+                  <div className="space-y-2.5 overflow-y-auto pr-1 my-1 flex-1">
+                    {loading ? (
+                      <div className="h-full flex items-center justify-center">
+                        <FaSpinner className="animate-spin text-slate-400 w-6 h-6" />
+                      </div>
+                    ) : eventsList.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                        <FaCalendarAlt className="w-9 h-9 text-slate-300 mb-2" />
+                        <p className="text-sm font-bold text-slate-600">No scheduled activities</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Submit new events for board review.</p>
+                      </div>
+                    ) : (
+                      eventsList.map((evt) => {
+                        const eventCategory = evt.department_name || evt.category || 'General';
+                        const eventDate = evt.date || evt.startDate || 'TBD';
+                        const eventTime = evt.time || evt.startTime || 'All Day';
+                        const eventLocation = evt.location || evt.venue || 'Main Sanctuary';
+                        const status = evt.status || 'Approved';
+
+                        return (
+                          <div 
+                            key={evt.id} 
+                            className="p-3 bg-slate-50 hover:bg-slate-100/90 rounded-xl border border-slate-200/80 transition flex items-center justify-between gap-3"
+                          >
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="inline-block text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
+                                  {eventCategory}
+                                </span>
+                                {status === 'Approved' ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                    <FaCheckCircle className="w-2.5 h-2.5" /> Approved
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                    <FaHourglassHalf className="w-2.5 h-2.5" /> Pending Board
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="text-sm font-extrabold text-slate-900 leading-snug truncate">{evt.title}</h4>
+                              <div className="flex items-center gap-3 text-xs text-slate-500 font-medium truncate">
+                                <span className="flex items-center gap-1.5 shrink-0">
+                                  <FaCalendarAlt className="w-3 h-3 text-slate-400" /> {eventDate}
+                                </span>
+                                <span className="flex items-center gap-1.5 truncate">
+                                  <FaClock className="w-3 h-3 text-slate-400" /> {eventTime}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <p className="text-xs font-semibold text-slate-600 flex items-center gap-1 justify-end">
+                                <FaMapMarkerAlt className="w-3 h-3 text-emerald-600" /> {eventLocation}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between shrink-0">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Board Workflow</span>
+                    <button 
+                      onClick={() => setActiveTab('events')}
+                      className="text-xs font-extrabold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5 cursor-pointer transition"
+                    >
+                      View Calendar <FaArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* GRAPH MODULE */}
+                <div className="lg:col-span-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col h-full min-h-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2 shrink-0">
+                    <div>
+                      <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Departmental Activity & Filings</h2>
+                      <p className="text-xs font-medium text-slate-500 mt-0.5">Quarterly reports, events, and document submissions</p>
+                    </div>
+
+                    {/* Interactive Filter Toggle */}
+                    <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                      {['All', 'Events', 'Reports', 'Budgets'].map((filter) => (
+                        <button
+                          key={filter}
+                          onClick={() => setChartFilter(filter)}
+                          className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                            chartFilter === filter 
+                              ? 'bg-slate-950 text-white shadow-xs' 
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          {filter}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="w-full flex-1 min-h-0 pt-2">
+                    {loading ? (
+                      <div className="h-full flex items-center justify-center">
+                        <FaSpinner className="animate-spin text-slate-400 w-7 h-7" />
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={departmentMetricsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                          <XAxis dataKey="month" tickLine={false} tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }} />
+                          <YAxis allowDecimals={false} tickLine={false} tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }} />
+                          <Tooltip contentStyle={{ backgroundColor: '#020617', borderRadius: '12px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: '500', padding: '10px 14px' }} />
+                          <Legend wrapperStyle={{ fontSize: '12px', fontWeight: 600, paddingTop: '8px' }} />
+
+                          {(chartFilter === 'All' || chartFilter === 'Events') && (
+                            <Bar dataKey="Events" name="Events Conducted" fill="#10B981" radius={[4, 4, 0, 0]} />
+                          )}
+                          {(chartFilter === 'All' || chartFilter === 'Reports') && (
+                            <Bar dataKey="Reports" name="Quarterly Reports" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                          )}
+                          {(chartFilter === 'All' || chartFilter === 'Budgets') && (
+                            <Bar dataKey="Budgets" name="Proposals Submitted" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                          )}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* TIER 3: QUICK ACCESS REPOSITORY SHORTCUTS */}
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs shrink-0">
+                <div className="mb-3">
+                  <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">Departmental Operations Directory</h2>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {quickAccessModules.map((item) => (
+                    <div 
+                      key={item.id} 
+                      onClick={() => setActiveTab(item.targetTab)}
+                      className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-emerald-500 hover:bg-emerald-50/20 transition cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-500 group-hover:text-white transition">
+                          <FaFileAlt className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-extrabold text-slate-900 leading-snug group-hover:text-emerald-700 transition truncate">{item.title}</h3>
+                          <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">{item.date}</p>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveTab(item.targetTab);
+                        }}
+                        className="p-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl transition shadow-xs cursor-pointer shrink-0 ml-2"
+                      >
+                        <FaArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+            </div>
+          )}
+
+          {/* OTHER TAB MODULES */}
+          {activeTab === 'departments' ? (
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-5">
+              <PastorDepartments />
+            </div>
+          ) : activeTab === 'meetings' ? (
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-5">
+              <PastorMeetingRecords />
+            </div>
+          ) : activeTab !== 'dashboard' && (
+            <div className="p-6 bg-white rounded-2xl shadow-xs border border-slate-200 flex flex-col items-center justify-center h-full text-center">
+              <ImageIcon className="w-12 h-12 text-slate-300 mb-3" />
+              <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{activeTab} Workspace</h2>
+              
+            </div>
+          )}
+
+        </main>
+      </div>
+
+      {/* DOCUMENT / MEDIA UPLOAD MODAL */}
+      {isImportOpen && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 relative font-['Plus_Jakarta_Sans',sans-serif]">
+            <button 
+              onClick={() => setIsImportOpen(false)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-slate-600 p-1.5 rounded-xl transition"
+            >
+              <X size={20} />
+            </button>
+
+            <div className="flex items-center gap-3.5 mb-5">
+              <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-200">
+                <FileSpreadsheet size={26} />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-lg tracking-tight">Upload Department Record</h3>
+                <p className="text-xs text-slate-500 font-medium">Submit minutes, proposals, or activity photos</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleImportSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Record Type</label>
+                <select 
+                  value={importType} 
+                  onChange={(e) => setImportType(e.target.value)}
+                  className="w-full text-xs font-semibold bg-slate-50 border border-slate-300 rounded-xl p-3 outline-emerald-500"
+                >
+                  <option value="event_proposal">Event Proposal (For Board Approval)</option>
+                  <option value="budget">Budget Request</option>
+                  <option value="minutes">Meeting Minutes / Report</option>
+                  <option value="media_proof">Activity Photos / Digital Proof</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">Attach File (.pdf, .png, .jpg, .xlsx)</label>
+                <input 
+                  type="file" 
+                  accept=".pdf, .jpg, .jpeg, .png, .xlsx, .docx"
+                  onChange={(e) => setImportFile(e.target.files[0])}
+                  className="w-full text-xs text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:bg-emerald-100 file:text-emerald-800 hover:file:bg-emerald-200 border border-slate-300 rounded-xl cursor-pointer"
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setIsImportOpen(false)}
+                  className="px-5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition uppercase tracking-wider"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploading}
+                  className="px-5 py-2.5 text-xs font-black text-slate-950 bg-emerald-500 hover:bg-emerald-600 rounded-xl transition uppercase tracking-wider"
+                >
+                  {uploading ? 'Uploading...' : 'Submit File'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Enlarged KPI Stat Card Component
+const StatCard = ({ title, value, icon: Icon, valueColor, iconBg }) => {
+  return (
+    <div className="bg-white px-6 py-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+      <div>
+        <p className="text-xs font-extrabold uppercase text-slate-400 tracking-wider">{title}</p>
+        <h3 className={`text-3xl lg:text-4xl font-black ${valueColor} mt-1 tracking-tight`}>{value}</h3>
+      </div>
+      <div className={`p-3.5 rounded-2xl ${iconBg}`}>
+        <Icon className="w-6 h-6" />
+      </div>
+    </div>
+  );
+};
+
+export default DepartmentDashboard;

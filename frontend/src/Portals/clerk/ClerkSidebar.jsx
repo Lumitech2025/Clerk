@@ -20,73 +20,70 @@ const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Church Cl
     { 
       id: 'analytics', 
       label: 'Home', 
-      icon: <LayoutGrid size={22} />
+      icon: <LayoutGrid size={20} />
     },
     { 
       id: 'admin-users', 
       label: 'Admin Users', 
-      icon: <ShieldCheck size={22} />
+      icon: <ShieldCheck size={20} />
     },
     { 
       id: 'membership', 
       label: 'Member Records', 
-      icon: <Users size={22} />
+      icon: <Users size={20} />
     },
     { 
       id: 'baptisms', 
       label: 'Baptisms', 
-      icon: <Droplets size={22} />
+      icon: <Droplets size={20} />
     },
-
     { 
       id: 'events', 
       label: 'Upcoming Events', 
-      icon: <ClipboardList size={22} />
+      icon: <ClipboardList size={20} />
     },
-
     { 
       id: 'holycommunion', 
       label: 'Holy Communion', 
-      icon: <Droplets size={22} />
+      icon: <Droplets size={20} />
     },
-
     { 
       id: 'dedications', 
       label: 'Child Dedications', 
-      icon: <Baby size={22} />
+      icon: <Baby size={20} />
     },
     { 
       id: 'meetings', 
       label: 'Meetings Records', 
-      icon: <ClipboardList size={22} />
+      icon: <ClipboardList size={20} />
     },
     { 
       id: 'departments', 
       label: 'Departments & TORs', 
-      icon: <Building2 size={22} />
+      icon: <Building2 size={20} />
     },
     { 
       id: 'communication', 
       label: 'Communication Hub', 
-      icon: <Megaphone size={22} />
+      icon: <Megaphone size={20} />
     },
     { 
       id: 'weddings', 
-      label: 'WEDDINGS & NOTIFS', 
-      icon: <Heart size={22} />, 
+      label: 'Weddings & Notifs', 
+      icon: <Heart size={20} />
     },
     { 
       id: 'conference-reports', 
       label: 'Conference Reports', 
-      icon: <FileBarChart size={22} />
+      icon: <FileBarChart size={20} />
     }
   ];
 
   return (
-    <aside className="w-80 bg-[#020617] h-screen flex flex-col justify-between p-6 border-r border-slate-800 flex-shrink-0 shadow-2xl font-sans select-none">
+    <aside className="w-80 bg-[#020617] h-screen flex flex-col justify-between p-6 border-r border-slate-800 flex-shrink-0 shadow-2xl font-['Plus_Jakarta_Sans',sans-serif] select-none">
       
       {/* 1. Header Section */}
-      <div className="flex items-center gap-3.5 px-2 pt-1 pb-4 border-b border-slate-800/60">
+      <div className="flex items-center gap-3.5 px-2 pt-1 pb-4 border-b border-slate-800/60 shrink-0">
         <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
           <Church size={28} />
         </div>
@@ -101,24 +98,24 @@ const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Church Cl
       </div>
 
       {/* 2. Main Navigation Area */}
-      <nav className="flex-1 flex flex-col justify-evenly my-6 py-2">
+      <nav className="flex-1 flex flex-col justify-evenly my-4 py-1 overflow-y-auto pr-1 gap-1">
         {menuItems.map((item) => {
           const isActive = activeTab === item.id;
           return (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center justify-between px-5 py-3.5 rounded-2xl transition-all duration-200 cursor-pointer ${
+              className={`w-full flex items-center justify-between px-4 py-2.5 rounded-2xl transition-all duration-200 cursor-pointer ${
                 isActive 
                   ? 'bg-emerald-500 text-slate-950 font-black shadow-lg shadow-emerald-500/25 scale-[1.02]' 
                   : 'text-slate-300 hover:bg-slate-900/80 hover:text-white font-black'
               }`}
             >
-              <div className="flex items-center gap-4 min-w-0">
+              <div className="flex items-center gap-3.5 min-w-0">
                 <div className={isActive ? 'text-slate-900' : 'text-emerald-400/80'}>
                   {item.icon}
                 </div>
-                <span className="text-base font-black tracking-wide uppercase truncate">
+                <span className="text-sm font-black tracking-wide uppercase truncate">
                   {item.label}
                 </span>
               </div>
@@ -138,10 +135,10 @@ const ClerkSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Church Cl
       </nav>
 
       {/* 3. Footer / Logout Section */}
-      <div className="pt-2 border-t border-slate-800/80">
+      <div className="pt-2 border-t border-slate-800/80 shrink-0">
         <button 
           onClick={onLogout}
-          className="w-full flex items-center justify-center gap-3 px-5 py-4 rounded-2xl text-rose-400 bg-rose-500/10 hover:bg-rose-500 hover:text-white font-black text-sm uppercase tracking-wider transition-all duration-200 border border-rose-500/20 cursor-pointer shadow-sm"
+          className="w-full flex items-center justify-center gap-3 px-5 py-3.5 rounded-2xl text-rose-400 bg-rose-500/10 hover:bg-rose-500 hover:text-white font-black text-sm uppercase tracking-wider transition-all duration-200 border border-rose-500/20 cursor-pointer shadow-sm"
         >
           <LogOut size={20} />
           <span>Log Out</span>

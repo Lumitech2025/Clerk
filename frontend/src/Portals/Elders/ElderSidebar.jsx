@@ -7,12 +7,11 @@ import {
   BookOpen, 
   FileBarChart, 
   LogOut, 
-  Church,
-  Baby,
-  Megaphone
+  ShieldCheck,
+  Baby
 } from 'lucide-react';
 
-const PastorSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Pastoral Desk' }) => {
+const ElderSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Elders Board' }) => {
   const menuItems = [
     { 
       id: 'dashboard', 
@@ -42,7 +41,7 @@ const PastorSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Pastoral
     { 
       id: 'communication', 
       label: 'Communication Hub', 
-      icon: <Megaphone size={20} /> 
+      icon: <Heart size={20} /> 
     },
     { 
       id: 'weddings', 
@@ -62,7 +61,7 @@ const PastorSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Pastoral
       {/* 1. Header Section */}
       <div className="flex items-center gap-3.5 px-2 pt-1 pb-4 border-b border-slate-800/60 shrink-0">
         <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-          <Church size={28} />
+          <ShieldCheck size={28} />
         </div>
         <div className="overflow-hidden">
           <h1 className="text-xl font-black text-white tracking-wider uppercase leading-none truncate">
@@ -126,4 +125,4 @@ const PastorSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Pastoral
   );
 };
 
-export default PastorSidebar;
+export default ElderSidebar;

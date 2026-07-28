@@ -4,6 +4,8 @@ import { AuthContext } from '../context/AuthContext';
 // Import Portal Views for Users
 import ClerkPortal from '../Portals/clerk/ClerkDashboard';
 import PastorDashboard from '../Portals/Pastor/PastorDashboard';
+import ElderDashboard from '../Portals/Elders/ElderDashboard';
+import DepartmentDashboard from '../Portals/Department/DepartmentDashboard';
 
 const Dashboard = () => {
   const { user } = useContext(AuthContext);
@@ -19,8 +21,13 @@ const Dashboard = () => {
       return <PastorDashboard />;
 
     case 'ELDER':
-    case 'COMMUNICATION':
+      return <ElderDashboard />; 
+
     case 'DEPT_LEADER':
+      return <DepartmentDashboard />;
+      
+    case 'COMMUNICATION':
+    
     case 'MEMBER':
       return (
         <div style={{ padding: '40px', textAlign: 'center', backgroundColor: '#020617', height: '100vh', color: '#fff' }}>
