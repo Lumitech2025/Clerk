@@ -361,10 +361,13 @@ const Departments = ({ userRole = 'Church Clerk' }) => {
   );
 
   const filteredWorkers = churchWorkers.filter(w => {
-    const matchesSearch = (w.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const workerName = w.full_name || w.name || '';
+    const workerRole = w.designation || w.role || '';
+
+    const matchesSearch = workerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (w.phone_number || '').includes(searchTerm);
     const matchesDept = selectedDeptFilter === 'All Departments' || w.department_name === selectedDeptFilter;
-    const matchesRole = selectedRoleFilter === 'All Roles' || w.role === selectedRoleFilter;
+    const matchesRole = selectedRoleFilter === 'All Roles' || workerRole === selectedRoleFilter;
     return matchesSearch && matchesDept && matchesRole;
   });
 
@@ -422,15 +425,11 @@ const Departments = ({ userRole = 'Church Clerk' }) => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight uppercase">
-              Departments & Church Desk
+              Departments & Church Workers
             </h1>
-            <span className="bg-emerald-100 text-emerald-900 border border-emerald-300 text-[10px] font-black uppercase px-2 py-0.5 rounded-md">
-              Role: {userRole}
-            </span>
+            
           </div>
-          <p className="text-sm text-slate-500 font-medium mt-1">
-            Newlife Church department structures, terms of reference, reports, and church workers repository.
-          </p>
+          
         </div>
 
         {/* 3 TOGGLE TABS */}
@@ -818,53 +817,65 @@ const Departments = ({ userRole = 'Church Clerk' }) => {
                       </td>
                     </tr>
                   ) : filteredWorkers.length > 0 ? (
-                    filteredWorkers.map((worker) => (
-                      <tr key={worker.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-4 px-6 font-extrabold text-slate-900 flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-black text-xs">
-                            {(worker.name || 'W').charAt(0)}
-                          </div>
-                          <span>{worker.name}</span>
-                        </td>
+                    filteredWorkers.map((worker) => {
+                      // Fallback handling for DRF backend key names
+                      const name = worker.full_name || worker.name || 'Church Worker';
+                      const role = worker.designation || worker.role || 'Member';
 
-                        <td className="py-4 px-6">
-                          <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-extrabold ${
-                            (worker.role || '').includes('Pastor') ? 'bg-purple-100 text-purple-900 border border-purple-200' :
-                            (worker.role || '').includes('Elder') ? 'bg-blue-100 text-blue-900 border border-blue-200' :
-                            (worker.role || '').includes('Deacon') ? 'bg-amber-100 text-amber-900 border border-amber-200' :
-                            'bg-emerald-100 text-emerald-950 border border-emerald-200'
-                          }`}>
-                            <Briefcase size={12} /> {worker.role}
-                          </span>
-                        </td>
-
-                        <td className="py-4 px-6 font-bold text-slate-600">
-                          {worker.department_name || <span className="text-slate-400 italic">General Ministry</span>}
-                        </td>
-
-                        <td className="py-4 px-6 font-bold text-slate-800">
-                          {worker.phone_number ? (
-                            <span className="flex items-center gap-1.5 text-slate-800">
-                              <Phone size={14} className="text-emerald-600" /> {worker.phone_number}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 text-xs italic">N/A</span>
-                          )}
-                        </td>
-
-                        {canModifyData && (
-                          <td className="py-4 px-6 text-right">
-                            <button 
-                              onClick={() => handleDeleteWorker(worker.id)}
-                              className="text-slate-400 hover:text-rose-600 p-1 transition cursor-pointer"
-                              title="Delete worker"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                      return (
+                        <tr key={worker.id} className="hover:bg-slate-50/80 transition">
+                          
+                          {/* WORKER NAME */}
+                          <td className="py-4 px-6 font-extrabold text-slate-900 flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-600 font-black text-xs uppercase">
+                              {name.charAt(0)}
+                            </div>
+                            <span>{name}</span>
                           </td>
-                        )}
-                      </tr>
-                    ))
+
+                          {/* ROLE / POSITION */}
+                          <td className="py-4 px-6">
+                            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold ${
+                              role.includes('Pastor') ? 'bg-purple-100 text-purple-900 border border-purple-200' :
+                              role.includes('Elder') ? 'bg-blue-100 text-blue-900 border border-blue-200' :
+                              role.includes('Deacon') ? 'bg-amber-100 text-amber-900 border border-amber-200' :
+                              'bg-emerald-100 text-emerald-950 border border-emerald-200'
+                            }`}>
+                              <Briefcase size={12} /> {role}
+                            </span>
+                          </td>
+
+                          {/* DEPARTMENT */}
+                          <td className="py-4 px-6 font-bold text-slate-600">
+                            {worker.department_name || <span className="text-slate-400 italic">General Ministry</span>}
+                          </td>
+
+                          {/* PHONE NUMBER */}
+                          <td className="py-4 px-6 font-bold text-slate-800">
+                            {worker.phone_number ? (
+                              <span className="flex items-center gap-1.5 text-slate-800">
+                                <Phone size={14} className="text-emerald-600" /> {worker.phone_number}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-xs italic">N/A</span>
+                            )}
+                          </td>
+
+                          {/* ACTIONS */}
+                          {canModifyData && (
+                            <td className="py-4 px-6 text-right">
+                              <button 
+                                onClick={() => handleDeleteWorker(worker.id)}
+                                className="text-slate-400 hover:text-rose-600 p-1 transition cursor-pointer"
+                                title="Delete worker"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan={canModifyData ? "5" : "4"} className="py-8 text-center text-slate-400 text-sm font-semibold">
@@ -979,15 +990,13 @@ const Departments = ({ userRole = 'Church Clerk' }) => {
                     className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
                   />
                   <label htmlFor="isDiaconate" className="text-xs font-black text-slate-900 uppercase cursor-pointer">
-                    Register General Members (Auto-sync to Church Workers list)
+                    Team Members
                   </label>
                 </div>
 
                 {deptForm.isDiaconate && (
                   <div className="space-y-2 pt-2">
-                    <p className="text-[11px] text-slate-600 font-bold">
-                      General members entered here are not council members but will automatically become registered Church Workers.
-                    </p>
+                    
                     {deptForm.generalMembers.map((gMem, idx) => (
                       <div key={idx} className="grid grid-cols-3 gap-2">
                         <input
@@ -1034,7 +1043,7 @@ const Departments = ({ userRole = 'Church Clerk' }) => {
                       })}
                       className="text-emerald-700 hover:underline text-xs font-black cursor-pointer"
                     >
-                      + Add General Member Row
+                      + Add Team Member
                     </button>
                   </div>
                 )}
