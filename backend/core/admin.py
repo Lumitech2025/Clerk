@@ -5,6 +5,8 @@ from .models import (
     BaptismRecord,
     ChildDedication,
     Department,
+    DepartmentRole,
+    ChurchWorker,
     DepartmentalReport,
     Bulletin,
     Meeting,
@@ -17,11 +19,15 @@ from .models import (
 )
 
 
-
-
 # ==========================================
-# INLINES FOR MEETING MANAGEMENT
+# INLINES FOR MEETING & DEPARTMENT MANAGEMENT
 # ==========================================
+
+class DepartmentRoleInline(admin.TabularInline):
+    model = DepartmentRole
+    extra = 1
+    fields = ('member_name', 'designation', 'phone_number')
+
 
 class MeetingAttendanceInline(admin.TabularInline):
     model = MeetingAttendance
@@ -49,6 +55,22 @@ class AttendanceSheetUploadInline(admin.TabularInline):
 # ==========================================
 # ADMIN MODEL REGISTRATIONS
 # ==========================================
+
+@admin.register(ChurchWorker)
+class ChurchWorkerAdmin(admin.ModelAdmin):
+    list_display = (
+        'full_name',
+        'designation',
+        'worker_type',
+        'department',
+        'phone_number',
+        'email',
+        'is_active',
+    )
+    list_filter = ('worker_type', 'is_active', 'department')
+    search_fields = ('full_name', 'designation', 'phone_number', 'email')
+    list_editable = ('is_active',)
+
 
 @admin.register(Meeting)
 class MeetingAdmin(admin.ModelAdmin):
@@ -102,8 +124,9 @@ class ChildDedicationAdmin(admin.ModelAdmin):
 
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ('name', 'leader', 'has_tor_doc', 'created_at')
-    search_fields = ('name', 'leader')
+    list_display = ('name', 'leader', 'leader_phone', 'has_tor_doc', 'created_at')
+    search_fields = ('name', 'leader', 'leader_phone')
+    inlines = [DepartmentRoleInline]
 
     def has_tor_doc(self, obj):
         return bool(obj.tor_doc)
@@ -234,7 +257,6 @@ class MemberRecordAdmin(admin.ModelAdmin):
     )
 
 
-# Optional standalone registrations if you still want quick access to individual sub-tables:
 @admin.register(MeetingAttendance)
 class MeetingAttendanceAdmin(admin.ModelAdmin):
     list_display = (
@@ -374,8 +396,6 @@ class HolyCommunionAdmin(admin.ModelAdmin):
         if not change and not obj.recorded_by:
             obj.recorded_by = request.user
         super().save_model(request, obj, form, change)
-
-
 
 
 @admin.register(Event)

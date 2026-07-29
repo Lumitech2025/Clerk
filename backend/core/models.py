@@ -3,7 +3,6 @@ from django.conf import settings
 from django.core.validators import RegexValidator
 from django.utils.translation import gettext_lazy as _
 import os
-from django.db import models
 from django.contrib.auth import get_user_model
 import uuid
 from django.core.exceptions import ValidationError
@@ -46,7 +45,6 @@ class BaptismRecord(models.Model):
     status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Processing')
     certificate_collected_at = models.DateTimeField(blank=True, null=True)
     
-    # Optional relation if candidate is linked to an existing User/Member profile
     member_profile = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -55,8 +53,6 @@ class BaptismRecord(models.Model):
         related_name='baptism_certificate'
     )
 
-    # Audit & RBAC Fields
-    # FIXED: Replaced 'auth.User' string with settings.AUTH_USER_MODEL
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.SET_NULL, 
@@ -122,7 +118,8 @@ def upload_report_path(instance, filename):
 class Department(models.Model):
     name = models.CharField(max_length=255, unique=True)
     leader = models.CharField(max_length=255)
-    # Stores dynamic list of objects: [{"name": "John Doe", "role": "Secretary"}]
+    leader_phone = models.CharField(max_length=20, blank=True, null=True)
+    # Stores dynamic list of objects: [{"name": "John Doe", "role": "Secretary", "phone": "+254712345678"}]
     council_members = models.JSONField(default=list, blank=True)
     tor_doc = models.FileField(upload_to=upload_tor_path, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -134,13 +131,45 @@ class Department(models.Model):
     def __str__(self):
         return self.name
 
+
 class DepartmentRole(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='council_roles')
     member_name = models.CharField(max_length=255)
     designation = models.CharField(max_length=100) # e.g., "Chairman", "Secretary", "Sponsor"
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
     
     def __str__(self):
         return f"{self.member_name} - {self.designation} ({self.department.name})"
+
+
+class ChurchWorker(models.Model):
+    WORKER_TYPES = [
+        ('PASTOR', 'Pastor'),
+        ('ELDER', 'Elder'),
+        ('CLERK', 'Church Clerk'),
+        ('DEACON', 'Deacon / Deaconess'),
+        ('DEPT_LEADER', 'Department Leader'),
+        ('STAFF', 'Church Staff'),
+        ('OTHER', 'Other Worker'),
+    ]
+
+    full_name = models.CharField(max_length=255)
+    designation = models.CharField(max_length=100, help_text="e.g. Senior Pastor, Head Elder, Choir Director")
+    worker_type = models.CharField(max_length=50, choices=WORKER_TYPES, default='STAFF')
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True, related_name='workers')
+    phone_number = models.CharField(max_length=20)
+    email = models.EmailField(blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['full_name']
+        verbose_name = _("Church Worker")
+        verbose_name_plural = _("Church Workers")
+
+    def __str__(self):
+        return f"{self.full_name} - {self.designation}"
 
 
 class DepartmentalReport(models.Model):
@@ -166,8 +195,6 @@ class DepartmentalReport(models.Model):
 
     def __str__(self):
         return f"{self.department.name} - {self.report_type} ({self.date})"
-
-
 
 
 class Bulletin(models.Model):
@@ -206,7 +233,6 @@ class Bulletin(models.Model):
 
     def save(self, *args, **kwargs):
         if self.file and not self.file_size:
-            # Format file size in MB
             size_mb = self.file.size / (1024 * 1024)
             self.file_size = f"{size_mb:.1f} MB"
         
@@ -214,8 +240,6 @@ class Bulletin(models.Model):
             self.title = f"Sabbath Bulletin - {self.sabbath_date.strftime('%B %d, %Y')}"
             
         super().save(*args, **kwargs)
-
-
 
 
 class Meeting(models.Model):
@@ -301,9 +325,6 @@ class AbsenceApology(models.Model):
         return f"Apology: {self.member_name} - {self.meeting.meeting_ref}"
 
 
-
-
-
 class MethodOfEntry(models.TextChoices):
     BAPTISM = 'Baptism', 'Baptism'
     TRANSFER = 'Transfer', 'Transfer'
@@ -318,7 +339,6 @@ class TransferStatus(models.TextChoices):
 class MemberRecord(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     
-    # Optional One-to-One link with System User (For RBAC Member Access)
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -327,7 +347,6 @@ class MemberRecord(models.Model):
         related_name='member_profile'
     )
 
-    # Basic Personal Details
     full_name = models.CharField(max_length=255, db_index=True)
     gender = models.CharField(max_length=10, choices=[('Male', 'Male'), ('Female', 'Female')])
     date_of_birth = models.DateField(null=True, blank=True)
@@ -335,7 +354,6 @@ class MemberRecord(models.Model):
     phone_number = models.CharField(max_length=20, db_index=True, blank=True, null=True)
     email = models.EmailField(blank=True, null=True)
     
-    # Parent / Guardian Information
     father_name = models.CharField(max_length=255, blank=True, null=True)
     father_phone = models.CharField(max_length=20, blank=True, null=True)
     father_email = models.EmailField(blank=True, null=True)
@@ -344,20 +362,17 @@ class MemberRecord(models.Model):
     mother_phone = models.CharField(max_length=20, blank=True, null=True)
     mother_email = models.EmailField(blank=True, null=True)
 
-    # Admission & Registry Tracking
     joining_method = models.CharField(max_length=30, choices=MethodOfEntry.choices, default=MethodOfEntry.BAPTISM)
     home_church = models.CharField(max_length=255, default='Newlife SDA Church')
     year_joined = models.IntegerField(db_index=True)
     date_joined = models.DateField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
 
-    # Profession of Faith & Supporting Documents
     former_faith = models.CharField(max_length=255, blank=True, null=True)
     previous_church_letter = models.FileField(upload_to='letters/previous_church/', blank=True, null=True)
     parents_consent_letter = models.FileField(upload_to='letters/parents/', blank=True, null=True)
     baptism_card = models.FileField(upload_to='cards/baptism/', blank=True, null=True)
 
-    # Transfer Specific Fields
     transfer_status = models.CharField(
         max_length=50, 
         choices=TransferStatus.choices, 
@@ -392,7 +407,6 @@ class MemberRecord(models.Model):
         return f"{self.full_name} ({self.joining_method})"
 
 
-
 class WeddingNotification(models.Model):
     STATUS_CHOICES = [
         ('PENDING', 'Pending'),
@@ -411,7 +425,6 @@ class WeddingNotification(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='PENDING')
     notification_date = models.DateField(auto_now_add=True)
 
-    # 1. Applicant (Groom/Bride)
     applicant_name = models.CharField(max_length=255)
     applicant_membership = models.CharField(max_length=255, default='NEWLIFE SDA CHURCH, 5TH AVENUE')
     applicant_dob = models.DateField(null=True, blank=True)
@@ -420,7 +433,6 @@ class WeddingNotification(models.Model):
     applicant_address = models.CharField(max_length=255, blank=True, null=True)
     applicant_signature_date = models.DateField(null=True, blank=True)
 
-    # 2. Spouse Particulars
     spouse_name = models.CharField(max_length=255)
     spouse_church = models.CharField(max_length=255)
     spouse_conference = models.CharField(max_length=255, blank=True, null=True)
@@ -431,7 +443,6 @@ class WeddingNotification(models.Model):
     spouse_address = models.CharField(max_length=255, blank=True, null=True)
     spouse_signature_date = models.DateField(null=True, blank=True)
 
-    # 3. Event & Officiating Details
     wedding_date = models.DateField()
     wedding_place = models.CharField(max_length=255, default='NEWLIFE SDA CHURCH')
     officiating_pastor = models.CharField(max_length=255)
@@ -439,21 +450,17 @@ class WeddingNotification(models.Model):
     officiating_elder = models.CharField(max_length=255)
     reception_venue = models.CharField(max_length=255, blank=True, null=True)
 
-    # 4. Clerk Desk Office Receipt
     notice_received_by = models.CharField(max_length=255, blank=True, null=True)
     notice_received_date = models.DateField(null=True, blank=True)
 
-    # 5. File Attachments
     groom_consent_file = models.FileField(upload_to='wedding_docs/groom_consents/', blank=True, null=True)
     bride_consent_file = models.FileField(upload_to='wedding_docs/bride_consents/', blank=True, null=True)
     recommendation_letter_file = models.FileField(upload_to='wedding_docs/recommendations/', blank=True, null=True)
 
-    # Document Check Flags
     has_applicant_parent_consent = models.BooleanField(default=False)
     has_spouse_parent_consent = models.BooleanField(default=False)
     has_recommendation_letter = models.BooleanField(default=False)
 
-    # 6. Church Board Action
     board_action_date = models.DateField(null=True, blank=True)
     board_recommendations = models.TextField(blank=True, null=True)
     board_chairman_signature = models.CharField(max_length=255, blank=True, null=True)
@@ -468,8 +475,6 @@ class WeddingNotification(models.Model):
 
     def __str__(self):
         return f"{self.applicant_name} & {self.spouse_name} - {self.wedding_date}"
-
-
 
 
 class HolyCommunion(models.Model):
@@ -523,7 +528,7 @@ class HolyCommunion(models.Model):
         ordering = ['-service_date']
         verbose_name = 'Holy Communion Record'
         verbose_name_plural = 'Holy Communion Records'
-        unique_together = ['year', 'quarter']  # Prevents duplicate quarterly entries for the same year
+        unique_together = ['year', 'quarter']
 
     def __str__(self):
         return f"Holy Communion - {self.year} {self.quarter} ({self.service_date})"
@@ -555,13 +560,11 @@ class Event(models.Model):
         COMPLETED = 'Completed', 'Completed'
         CANCELLED = 'Cancelled', 'Cancelled'
 
-    # Core Event Details
     title = models.CharField(max_length=255)
     event_type = models.CharField(max_length=50, choices=EventCategory.choices, default=EventCategory.GENERAL)
     target_audience = models.CharField(max_length=20, choices=TargetAudience.choices, default=TargetAudience.ALL)
     status = models.CharField(max_length=20, choices=EventStatus.choices, default=EventStatus.UPCOMING)
 
-    # Schedule Details
     is_multi_day = models.BooleanField(default=False)
     start_date = models.DateField()
     end_date = models.DateField(null=True, blank=True)
@@ -570,16 +573,13 @@ class Event(models.Model):
     start_time = models.TimeField(null=True, blank=True)
     end_time = models.TimeField(null=True, blank=True)
 
-    # Logistics
     venue = models.CharField(max_length=255, default='Main Sanctuary')
     organizer = models.CharField(max_length=255, default='Church Clerk Desk')
     description = models.TextField(blank=True, default='')
 
-    # Wedding Specific Attributes
     groom_name = models.CharField(max_length=150, blank=True, default='')
     bride_name = models.CharField(max_length=150, blank=True, default='')
 
-    # Metadata
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.SET_NULL, 
@@ -596,14 +596,12 @@ class Event(models.Model):
         verbose_name_plural = 'Events'
 
     def clean(self):
-        # Validate Multi-day logic
         if self.is_multi_day and not self.end_date:
             raise ValidationError({'end_date': 'End date is required for multi-day events.'})
         
         if self.end_date and self.end_date < self.start_date:
             raise ValidationError({'end_date': 'End date cannot be earlier than start date.'})
 
-        # Validate Wedding requirements
         if self.event_type == self.EventCategory.WEDDING:
             if not self.groom_name or not self.bride_name:
                 raise ValidationError({

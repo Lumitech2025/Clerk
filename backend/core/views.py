@@ -11,17 +11,12 @@ from django.utils import timezone
 from django.db.models import Count, Q
 from django.db.models.functions import TruncMonth
 
-from rest_framework import viewsets, permissions, filters
-from django_filters.rest_framework import DjangoFilterBackend
-
-
 MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
 
 # Models
 from .models import (
     MemberRecord, BaptismRecord, ChildDedication,
-    WeddingNotification, Department, DepartmentalReport,
+    WeddingNotification, Department, DepartmentRole, ChurchWorker, DepartmentalReport,
     Bulletin, Meeting, MeetingAttendance, AttendanceSheetUpload,
     AbsenceApology, HolyCommunion, Event
 )
@@ -29,9 +24,10 @@ from .models import (
 # Serializers
 from .serializers import (
     MemberRecordSerializer, BaptismSerializer, ChildDedicationSerializer,
-    WeddingNotificationSerializer, DepartmentSerializer, DepartmentalReportSerializer,
-    BulletinSerializer, MeetingSerializer, MeetingAttendanceSerializer,
-    AttendanceSheetUploadSerializer, AbsenceApologySerializer, DashboardAnalyticsSerializer, HolyCommunionSerializer, EventSerializer
+    WeddingNotificationSerializer, DepartmentSerializer, DepartmentRoleSerializer,
+    ChurchWorkerSerializer, DepartmentalReportSerializer, BulletinSerializer, 
+    MeetingSerializer, MeetingAttendanceSerializer, AttendanceSheetUploadSerializer, 
+    AbsenceApologySerializer, DashboardAnalyticsSerializer, HolyCommunionSerializer, EventSerializer
 )
 
 # Services
@@ -44,15 +40,9 @@ from .services import (
 
 # Centralized Role Extraction Helper
 def get_user_role(user):
-    """
-    Safely retrieves and normalizes the user's designation string 
-    from the Newlife CCIS custom User model.
-    """
     if not user or not user.is_authenticated:
         return ""
     
-    # Primary check: user.designation (from your models.py)
-    # Fallback check: user.role (in case of legacy/profile models)
     designation = (
         getattr(user, 'designation', None) 
         or getattr(user, 'role', None) 
@@ -74,11 +64,6 @@ class IsChurchClerk(permissions.BasePermission):
 
 
 class IsLeadershipReadOnlyOrClerkWrite(permissions.BasePermission):
-    """
-    Clerk: Full Read/Write
-    Pastors/Elders: Read-Only
-    Others: Denied
-    """
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
@@ -94,7 +79,6 @@ class IsLeadershipReadOnlyOrClerkWrite(permissions.BasePermission):
 
 
 class IsCommunicationOrClerk(permissions.BasePermission):
-    """Allows Clerks and Communication Team to publish updates and bulletins."""
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
@@ -108,7 +92,6 @@ class IsCommunicationOrClerk(permissions.BasePermission):
 
 
 class IsClerkOrPastorOrElder(permissions.BasePermission):
-    """Full pastoral & governance oversight permission class."""
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
             return False
@@ -197,7 +180,6 @@ class ChildDedicationViewSet(viewsets.ModelViewSet):
 
             return base_qs
 
-        # Regular members see dedications they submitted or are associated with
         return base_qs.filter(Q(submitted_by=user) | Q(parent_email=user.email)).distinct()
 
     def perform_create(self, serializer):
@@ -260,8 +242,24 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     parser_classes = (MultiPartParser, FormParser, JSONParser)
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['name', 'leader']
+    search_fields = ['name', 'leader', 'leader_phone']
     ordering_fields = ['name', 'created_at']
+
+
+class ChurchWorkerViewSet(viewsets.ModelViewSet):
+    """Church Workers & Council Phone Contacts management."""
+    queryset = ChurchWorker.objects.all()
+    serializer_class = ChurchWorkerSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['worker_type', 'department', 'is_active']
+    search_fields = ['full_name', 'designation', 'phone_number', 'email']
+    ordering_fields = ['full_name', 'designation', 'created_at']
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
+        return [IsChurchClerk()]
 
 
 class DepartmentalReportViewSet(viewsets.ModelViewSet):
@@ -307,10 +305,10 @@ class BulletinViewSet(viewsets.ModelViewSet):
         message = (
             f"*NEWLIFE SDA CHURCH - WEEKLY BULLETIN*\n"
             f"📅 *Sabbath Date:* {formatted_date}\n"
-            f"📰 *Title:* {bulletin.title}\n\n"
+            f"📖 *Title:* {bulletin.title}\n\n"
             f"Greetings saints! Please find the official church bulletin for this Sabbath attached below or download it directly using the link:\n"
             f"🔗 {file_url}\n\n"
-            f"Blessed Sabbath! 🙏✨"
+            f"Blessed Sabbath! ✨"
         )
 
         return Response({
@@ -446,7 +444,6 @@ class DashboardAnalyticsViewSet(viewsets.ViewSet):
 
         upcoming_events_count = visible_events.filter(start_date__gte=today).count()
 
-        # 1. Top KPI Metrics
         total_active_members = MemberRecord.objects.filter(is_active=True).count()
         baptisms_ytd = BaptismRecord.objects.filter(baptism_date__year=current_year).count()
         child_dedications_total = ChildDedication.objects.count()
@@ -458,12 +455,10 @@ class DashboardAnalyticsViewSet(viewsets.ViewSet):
 
         upcoming_events_count = Event.objects.filter(start_date__gte=today).count()
 
-        # 2. Monthly Monthly Metrics Aggregation (Baptisms, Transfers In, Transfers Out)
         baptism_counts = [0] * 12
         transfers_in_counts = [0] * 12
         transfers_out_counts = [0] * 12
 
-        # Baptisms
         baptisms_query = (
             BaptismRecord.objects.filter(baptism_date__year=current_year)
             .annotate(month=TruncMonth('baptism_date'))
@@ -475,7 +470,6 @@ class DashboardAnalyticsViewSet(viewsets.ViewSet):
                 idx = entry['month'].month - 1
                 baptism_counts[idx] = entry['count']
 
-        # Transfers In
         transfers_in_query = (
             MemberRecord.objects.filter(
                 date_joined__year=current_year,
@@ -491,7 +485,6 @@ class DashboardAnalyticsViewSet(viewsets.ViewSet):
                 idx = entry['month'].month - 1
                 transfers_in_counts[idx] = entry['count']
 
-        # Transfers Out
         transfers_out_query = (
             MemberRecord.objects.filter(
                 updated_at__year=current_year,
@@ -506,7 +499,6 @@ class DashboardAnalyticsViewSet(viewsets.ViewSet):
                 idx = entry['month'].month - 1
                 transfers_out_counts[idx] = entry['count']
 
-        # Format Chart Payload
         monthly_metrics = []
         for i in range(12):
             monthly_metrics.append({
@@ -537,11 +529,9 @@ class DashboardAnalyticsViewSet(viewsets.ViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-
 class HolyCommunionViewSet(viewsets.ModelViewSet):
     """
     API ViewSet for viewing, creating, updating, and deleting Holy Communion quarterly records.
-    Supports file uploads (`MultipartParser`) and filtering by `year` and `quarter`.
     """
     queryset = HolyCommunion.objects.all()
     serializer_class = HolyCommunionSerializer
@@ -551,7 +541,6 @@ class HolyCommunionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         
-        # Extract query parameters sent from React frontend
         year = self.request.query_params.get('year', None)
         quarter = self.request.query_params.get('quarter', None)
 
@@ -563,7 +552,6 @@ class HolyCommunionViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
-        # Automatically attach logged-in clerk to the record
         if self.request.user and self.request.user.is_authenticated:
             serializer.save(recorded_by=self.request.user)
         else:
@@ -574,17 +562,12 @@ class HolyCommunionViewSet(viewsets.ModelViewSet):
 
 
 class RoleBasedEventAccessPermission(permissions.BasePermission):
-    """
-    Custom Permission:
-    - Anyone authenticated can view events allowed by their role.
-    - Only Clerks, Pastors, and Admins can create/edit/delete events.
-    """
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return request.user.is_authenticated
 
         user = request.user
-        user_role = getattr(user, 'role', None)  # Assumes custom User model with role field
+        user_role = getattr(user, 'role', None)
         
         return (
             user.is_staff or 
@@ -605,11 +588,7 @@ class EventViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='upcoming', pagination_class=None)
     def upcoming(self, request):
-        """Returns unpaginated list of upcoming events visible to the current user."""
-        # Use local date to avoid UTC boundary drops
         today = timezone.localtime(timezone.now()).date()
-        
-        # get_queryset() ensures Role-Based Access Control filters are respected
         queryset = self.get_queryset().filter(start_date__gte=today).order_by('start_date', 'start_time')
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
@@ -617,13 +596,11 @@ class EventViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
 
-        # Superusers and Clerks/Pastors see everything
         if user.is_staff or user.is_superuser:
             return Event.objects.all()
 
         user_role = get_user_role(user)
 
-        # Define visibility mapping based on user role
         allowed_audiences = [Event.TargetAudience.ALL]
 
         if user_role in ['CHURCH_CLERK', 'PASTOR']:
@@ -635,7 +612,6 @@ class EventViewSet(viewsets.ModelViewSet):
         elif user_role == 'DEPARTMENT_LEADER':
             allowed_audiences.append(Event.TargetAudience.LEADERS)
 
-        # Filter timeframe if specified
         timeframe = self.request.query_params.get('timeframe')
         qs = Event.objects.filter(target_audience__in=allowed_audiences)
 

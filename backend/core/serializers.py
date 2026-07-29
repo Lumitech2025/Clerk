@@ -1,6 +1,10 @@
 from rest_framework import serializers
 import json
-from .models import Event, HolyCommunion, WeddingNotification, BaptismRecord, ChildDedication,Department, DepartmentalReport, Bulletin,Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, Department, MemberRecord
+from .models import (
+    Event, HolyCommunion, WeddingNotification, BaptismRecord, ChildDedication,
+    Department, DepartmentRole, ChurchWorker, DepartmentalReport, Bulletin, 
+    Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, MemberRecord
+)
 
 
 class BaptismSerializer(serializers.ModelSerializer):
@@ -22,9 +26,7 @@ class BaptismSerializer(serializers.ModelSerializer):
         ]
 
 
-
 class ChildDedicationSerializer(serializers.ModelSerializer):
-    # Aliases to safely accept camelCase input from React JSX
     childName = serializers.CharField(source='child_name', required=False)
     fatherName = serializers.CharField(source='father_name', required=False)
     motherName = serializers.CharField(source='mother_name', required=False)
@@ -54,8 +56,6 @@ class ChildDedicationSerializer(serializers.ModelSerializer):
         ]
 
     def to_representation(self, instance):
-        """Format output payload to match frontend JSX expects."""
-        ret = super().to_representation(instance)
         return {
             'id': instance.id,
             'childName': instance.child_name,
@@ -72,10 +72,15 @@ class ChildDedicationSerializer(serializers.ModelSerializer):
         }
 
 
+class DepartmentRoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DepartmentRole
+        fields = ['id', 'member_name', 'designation', 'phone_number']
 
 
 class DepartmentSerializer(serializers.ModelSerializer):
     tor_doc_url = serializers.SerializerMethodField()
+    council_roles = DepartmentRoleSerializer(many=True, read_only=True)
 
     class Meta:
         model = Department
@@ -83,7 +88,9 @@ class DepartmentSerializer(serializers.ModelSerializer):
             'id', 
             'name', 
             'leader', 
+            'leader_phone',
             'council_members', 
+            'council_roles',
             'tor_doc', 
             'tor_doc_url', 
             'created_at', 
@@ -92,8 +99,6 @@ class DepartmentSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'tor_doc': {'write_only': True, 'required': False}
         }
-
-    
 
     def get_tor_doc_url(self, obj):
         if obj.tor_doc:
@@ -104,13 +109,33 @@ class DepartmentSerializer(serializers.ModelSerializer):
         return None
 
     def validate_council_members(self, value):
-        # Handle stringified JSON input if sent via multipart/form-data
         if isinstance(value, str):
             try:
                 return json.loads(value)
             except json.JSONDecodeError:
                 raise serializers.ValidationError("Invalid JSON format for council members.")
         return value
+
+
+class ChurchWorkerSerializer(serializers.ModelSerializer):
+    department_name = serializers.ReadOnlyField(source='department.name')
+
+    class Meta:
+        model = ChurchWorker
+        fields = [
+            'id', 
+            'full_name', 
+            'designation', 
+            'worker_type', 
+            'department', 
+            'department_name', 
+            'phone_number', 
+            'email', 
+            'is_active', 
+            'created_at', 
+            'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
 
 
 class DepartmentalReportSerializer(serializers.ModelSerializer):
@@ -143,7 +168,6 @@ class DepartmentalReportSerializer(serializers.ModelSerializer):
         return None
 
 
-
 class BulletinSerializer(serializers.ModelSerializer):
     uploaded_by_name = serializers.ReadOnlyField(source='uploaded_by.get_full_name')
     file_url = serializers.SerializerMethodField()
@@ -172,7 +196,6 @@ class BulletinSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.file.url)
             return obj.file.url
         return None
-
 
 
 class MeetingAttendanceSerializer(serializers.ModelSerializer):
@@ -224,6 +247,7 @@ class MeetingSerializer(serializers.ModelSerializer):
         present_count = obj.attendances.filter(status='PR').count()
         return round((present_count / total_records) * 100, 2)
 
+
 class MemberRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = MemberRecord
@@ -231,20 +255,14 @@ class MemberRecordSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
-
-
 class DashboardAnalyticsSerializer(serializers.Serializer):
-    # Top KPI Metrics Cards
     total_active_members = serializers.IntegerField()
     baptisms_ytd = serializers.IntegerField()
     child_dedications_total = serializers.IntegerField()
     pending_transfers = serializers.IntegerField()
     upcoming_events_count = serializers.IntegerField(default=0)
 
-    # Monthly Metrics Chart Data
     monthly_metrics = serializers.ListField(child=serializers.DictField())
-    
-    # Legacy / Additional Metrics
     membership_transfers = serializers.DictField(required=False)
     baptism_trends = serializers.DictField(required=False)
 
@@ -260,7 +278,6 @@ class WeddingNotificationSerializer(serializers.ModelSerializer):
         read_only_fields = ('created_at', 'updated_at')
 
     def create(self, validated_data):
-        # Automatically update check flags if files are uploaded
         if validated_data.get('groom_consent_file'):
             validated_data['has_applicant_parent_consent'] = True
         if validated_data.get('bride_consent_file'):
@@ -269,8 +286,6 @@ class WeddingNotificationSerializer(serializers.ModelSerializer):
             validated_data['has_recommendation_letter'] = True
 
         return super().create(validated_data)
-
-
 
 
 class HolyCommunionSerializer(serializers.ModelSerializer):
@@ -328,7 +343,6 @@ class HolyCommunionSerializer(serializers.ModelSerializer):
 
 
 class EventSerializer(serializers.ModelSerializer):
-    # Map frontend camelCase fields cleanly to backend model fields
     eventType = serializers.CharField(source='event_type', required=False)
     targetAudience = serializers.CharField(source='target_audience', required=False)
     isMultiDay = serializers.BooleanField(source='is_multi_day', required=False)
@@ -366,8 +380,6 @@ class EventSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
 
     def validate(self, attrs):
-        # Note: DRF automatically translates source='...' aliases back to 
-        # model field names inside `attrs` (e.g., eventType -> event_type)
         event_type = attrs.get('event_type', getattr(self.instance, 'event_type', None))
         groom_name = attrs.get('groom_name', getattr(self.instance, 'groom_name', ''))
         bride_name = attrs.get('bride_name', getattr(self.instance, 'bride_name', ''))
