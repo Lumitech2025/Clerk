@@ -37,11 +37,7 @@ const DepartmentSidebar = ({ activeTab, setActiveTab, onLogout, userRole = 'Depa
       label: 'Reports', 
       icon: <FileBarChart size={22} /> 
     },
-    { 
-      id: 'archives', 
-      label: 'Activities & Archives', 
-      icon: <FolderArchive size={22} /> 
-    }
+    
   ];
 
   return (

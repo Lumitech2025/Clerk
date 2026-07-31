@@ -4,6 +4,12 @@ import environ
 from datetime import timedelta
 from django.conf.urls.static import static
 
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 # 1. Initialize environment parser
 env = environ.Env(
     DEBUG=(bool, False)
@@ -16,7 +22,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Media files configuration
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
 
 
 # 3. Explicitly read the .env file located at BASE_DIR / '.env'
@@ -33,6 +38,7 @@ ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['127.0.0.1', 'localhost'])
 AUTH_USER_MODEL = 'authentication.User'
 
 
+# settings.py
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
@@ -42,6 +48,17 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
+    # Throttle / Rate Limiting Configurations
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/day',          # Unauthenticated general users
+        'user': '2000/day',         # Authenticated members/clerks
+        'login': '5/minute',        # Strict limit for authentication endpoint
+        'refresh': '10/minute',     # Limit for token refresh requests
+    }
 }
 
 SIMPLE_JWT = {
@@ -56,6 +73,8 @@ SIMPLE_JWT = {
 INSTALLED_APPS = [
     # 1. Admin Theme Customization (Must precede django.contrib.admin)
     'jazzmin',
+
+    'axes', 
 
     # Default Django Apps
     'django.contrib.admin',
@@ -74,7 +93,6 @@ INSTALLED_APPS = [
     # CCIS Local Apps
     'authentication',
     'core',
-    
 ]
 
 # 7. Middleware Chain (CORS added)
@@ -87,9 +105,12 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'axes.middleware.AxesMiddleware'
 ]
 
-# CORS Permissions
+# CORS Permissions & Credentials Configuration
+CORS_ALLOW_CREDENTIALS = True  # Required for HttpOnly cookies
+
 CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -97,6 +118,14 @@ CORS_ALLOWED_ORIGINS = env.list('CORS_ALLOWED_ORIGINS', default=[
     "http://127.0.0.1:5173",
 ])
 
+# Secure Cookie & Browser Security Headers
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
 
 ROOT_URLCONF = 'config.urls'
 
@@ -125,8 +154,6 @@ DATABASES = {
     )
 }
 
-
-
 # 9. Redis Cache Setup
 CACHES = {
     "default": {
@@ -137,6 +164,25 @@ CACHES = {
         }
     }
 }
+
+if DEBUG:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "ccis-local-dev-cache",
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django_redis.cache.RedisCache",
+            "LOCATION": env("REDIS_URL", default="redis://127.0.0.1:6379/1"),
+            "OPTIONS": {
+                "CLIENT_CLASS": "django_redis.client.DefaultClient",
+                "IGNORE_EXCEPTIONS": True,  # Prevents crashing if Redis drops in prod
+            }
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
@@ -153,6 +199,21 @@ USE_TZ = True
 STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesBackend',  # Must be first
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+AXES_FAILURE_LIMIT = 5                     
+AXES_COOLOFF_TIME = 0.5                     
+AXES_RESET_ON_SUCCESS = True                
+AXES_LOCKOUT_TEMPLATE = None  
+
+
+
+HTTPSMS_API_KEY = os.getenv('HTTPSMS_API_KEY')
+HTTPSMS_SENDER_PHONE = os.getenv('HTTPSMS_SENDER_PHONE')
+
 JAZZMIN_SETTINGS = {
     "site_title": "Newlife CCIS Admin",
     "site_header": "Newlife Church Clerk Desk",
@@ -161,7 +222,6 @@ JAZZMIN_SETTINGS = {
     "copyright": "Newlife SDA Church - Office of the Church Clerk",
     "search_model": ["authentication.User", "memberships.MembershipRegister"],
     
-    # User Menu Customizations
     "user_avatar": None,
     "topmenu_links": [
         {"name": "Home",  "url": "admin:index", "permissions": ["auth.view_user"]},
@@ -174,7 +234,6 @@ JAZZMIN_SETTINGS = {
         "core.AttendanceSheetUpload",
     ],
 
-    # Custom menu ordering for clarity
     "order_with_respect_to": [
         "core.MemberRecord",
         "core.Meeting",
@@ -185,21 +244,16 @@ JAZZMIN_SETTINGS = {
         "core.Bulletin",
     ],
     
-    # UI Customizations
     "show_sidebar": True,
     "navigation_expanded": True,
     "hide_apps": [],
-    "hide_models": [],
     "icons": {
         "authentication.User": "fas fa-user-shield",
         "memberships.MembershipRegister": "fas fa-users",
-        
     },
     "default_icon_parents": "fas fa-chevron-circle-right",
     "default_icon_children": "fas fa-circle",
 }
-
-
 
 JAZZMIN_UI_TWEAKS = {
     "navbar_small_text": False,

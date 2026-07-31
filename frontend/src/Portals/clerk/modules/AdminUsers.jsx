@@ -9,7 +9,11 @@ import {
   Phone, 
   Loader2,
   RefreshCw,
-  X
+  X,
+  Eye,
+  EyeOff,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 
 const DESIGNATION_CHOICES = [
@@ -33,6 +37,10 @@ const AdminUsers = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Password visibility states
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [form, setForm] = useState({
     username: '',
     email: '',
@@ -42,6 +50,7 @@ const AdminUsers = () => {
     designation: 'ELDER',
     department_name: '',
     password: '',
+    confirmPassword: '',
   });
 
   // Fetch Users
@@ -84,9 +93,19 @@ const AdminUsers = () => {
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
+
+    // Verify Password Match
+    if (form.password !== form.confirmPassword) {
+      alert('Passwords do not match. Please verify before saving.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await API.post('users/', form);
+      // Exclude confirmPassword before posting to backend
+      const { confirmPassword, ...payload } = form;
+
+      await API.post('users/', payload);
       setIsModalOpen(false);
       setForm({
         username: '',
@@ -97,6 +116,7 @@ const AdminUsers = () => {
         designation: 'ELDER',
         department_name: '',
         password: '',
+        confirmPassword: '',
       });
       fetchUsers();
     } catch (err) {
@@ -116,6 +136,9 @@ const AdminUsers = () => {
     return matchesSearch && matchesRole;
   });
 
+  const isPasswordMatching = form.confirmPassword.length > 0 && form.password === form.confirmPassword;
+  const isPasswordMismatch = form.confirmPassword.length > 0 && form.password !== form.confirmPassword;
+
   return (
     <div className="space-y-6 text-slate-800">
       {/* Header & Primary Actions */}
@@ -124,7 +147,6 @@ const AdminUsers = () => {
           <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
             <ShieldCheck className="text-emerald-500" size={30} /> Users
           </h2>
-          
         </div>
 
         <div className="flex items-center gap-3">
@@ -218,19 +240,14 @@ const AdminUsers = () => {
               ) : (
                 filteredUsers.map((u) => (
                   <tr key={u.id} className="hover:bg-slate-50/80 transition">
-                    {/* User Full Name */}
                     <td className="py-4 px-5 font-bold text-slate-900 text-base">
                       {u.first_name} {u.last_name}
                     </td>
-
-                    {/* User ID */}
                     <td className="py-4 px-5">
                       <span className="font-mono text-slate-600 bg-slate-100 px-3 py-1 rounded-md text-xs font-semibold">
                         @{u.username}
                       </span>
                     </td>
-
-                    {/* Role Designation */}
                     <td className="py-4 px-5">
                       <span className={`inline-block px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wide ${
                         u.designation === 'CLERK' ? 'bg-purple-100 text-purple-800' :
@@ -243,8 +260,6 @@ const AdminUsers = () => {
                         {DESIGNATION_CHOICES.find(c => c.value === u.designation)?.label || u.designation}
                       </span>
                     </td>
-
-                    {/* Department */}
                     <td className="py-4 px-5">
                       {u.department_name ? (
                         <span className="inline-flex items-center gap-1.5 text-slate-800 font-medium">
@@ -254,15 +269,11 @@ const AdminUsers = () => {
                         <span className="text-slate-400 italic font-normal">Unassigned</span>
                       )}
                     </td>
-
-                    {/* Email */}
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-2 text-slate-600">
                         <Mail size={15} className="text-slate-400" /> {u.email}
                       </div>
                     </td>
-
-                    {/* Phone Number */}
                     <td className="py-4 px-5">
                       {u.phone_number ? (
                         <div className="flex items-center gap-2 text-slate-600 font-mono text-xs">
@@ -400,16 +411,72 @@ const AdminUsers = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Initial Password *</label>
-                <input
-                  type="password"
-                  name="password"
-                  required
-                  value={form.password}
-                  onChange={handleChange}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
-                />
+              {/* Password & Confirm Password Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Initial Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      required
+                      value={form.password}
+                      onChange={handleChange}
+                      placeholder="••••••••••••"
+                      className="w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:outline-none focus:border-emerald-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-600 mb-1">Confirm Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      name="confirmPassword"
+                      required
+                      value={form.confirmPassword}
+                      onChange={handleChange}
+                      placeholder="••••••••••••"
+                      className={`w-full pl-3.5 pr-10 py-2.5 bg-slate-50 border rounded-xl text-sm font-medium text-slate-900 focus:outline-none transition-colors ${
+                        isPasswordMatching
+                          ? 'border-emerald-500 bg-emerald-50/20'
+                          : isPasswordMismatch
+                          ? 'border-rose-500 bg-rose-50/20'
+                          : 'border-slate-200 focus:border-emerald-500'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  {/* Real-time Matching Indicator */}
+                  {form.confirmPassword.length > 0 && (
+                    <div className="mt-1.5 text-xs flex items-center gap-1 font-semibold">
+                      {isPasswordMatching ? (
+                        <span className="text-emerald-600 flex items-center gap-1">
+                          <CheckCircle2 size={14} /> Passwords match
+                        </span>
+                      ) : (
+                        <span className="text-rose-600 flex items-center gap-1">
+                          <AlertCircle size={14} /> Passwords do not match
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="pt-3 border-t border-slate-200 flex justify-end gap-3">
@@ -422,7 +489,7 @@ const AdminUsers = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isPasswordMismatch}
                   className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl transition cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-2"
                 >
                   {isSubmitting ? <Loader2 className="animate-spin" size={14} /> : null}

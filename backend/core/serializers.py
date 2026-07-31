@@ -3,11 +3,17 @@ import json
 from .models import (
     Event, HolyCommunion, WeddingNotification, BaptismRecord, ChildDedication,
     Department, DepartmentRole, ChurchWorker, DepartmentalReport, Bulletin, 
-    Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, MemberRecord
+    Meeting, MeetingAttendance, AttendanceSheetUpload, AbsenceApology, MemberRecord, DepartmentalEvent,
+    DepartmentalMeeting, DepartmentalMeetingAttendance
+
 )
 
 
 class BaptismSerializer(serializers.ModelSerializer):
+    baptism_info_form_url = serializers.SerializerMethodField()
+    baptism_card_url = serializers.SerializerMethodField()
+    cbm_minutes_doc_url = serializers.SerializerMethodField()
+
     class Meta:
         model = BaptismRecord
         fields = [
@@ -17,14 +23,46 @@ class BaptismSerializer(serializers.ModelSerializer):
             'gender',
             'phone',
             'email',
+            'father_name',
+            'father_phone',
+            'mother_name',
+            'mother_phone',
             'officiating_pastor',
             'place_of_baptism',
             'baptism_date',
+            'cbm_minute_no',
+            'cbm_minutes_doc',
+            'cbm_minutes_doc_url',
+            'baptism_info_form',
+            'baptism_info_form_url',
+            'baptism_card',
+            'baptism_card_url',
             'status',
+            'certificate_collected_at',
+            'member_profile',
+            'created_by',
             'created_at',
-            'updated_at'
+            'updated_at',
         ]
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
 
+    def get_baptism_info_form_url(self, obj):
+        if obj.baptism_info_form:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.baptism_info_form.url) if request else obj.baptism_info_form.url
+        return None
+
+    def get_baptism_card_url(self, obj):
+        if obj.baptism_card:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.baptism_card.url) if request else obj.baptism_card.url
+        return None
+
+    def get_cbm_minutes_doc_url(self, obj):
+        if obj.cbm_minutes_doc:
+            request = self.context.get('request')
+            return request.build_absolute_uri(obj.cbm_minutes_doc.url) if request else obj.cbm_minutes_doc.url
+        return None
 
 class ChildDedicationSerializer(serializers.ModelSerializer):
     childName = serializers.CharField(source='child_name', required=False)
@@ -391,3 +429,123 @@ class EventSerializer(serializers.ModelSerializer):
                 })
 
         return attrs
+
+class DepartmentalEventSerializer(serializers.ModelSerializer):
+    department_name = serializers.ReadOnlyField(source='department.name')
+    poster_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DepartmentalEvent
+        fields = [
+            'id',
+            'department',
+            'department_name',
+            'title',
+            'description',
+            'leader_in_charge',
+            'leader_phone',
+            'start_date',
+            'end_date',
+            'start_time',
+            'end_time',
+            'venue',
+            'budget_estimate',
+            'event_poster',
+            'poster_url',
+            'status',
+            'created_by',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
+
+    def get_poster_url(self, obj):
+        if obj.event_poster:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.event_poster.url)
+            return obj.event_poster.url
+        return None
+
+    def create(self, validated_data):
+        # Extract existing leader details if missing during API payload submission
+        department = validated_data.get('department')
+        if department:
+            if not validated_data.get('leader_in_charge'):
+                validated_data['leader_in_charge'] = department.leader
+            if not validated_data.get('leader_phone'):
+                validated_data['leader_phone'] = department.leader_phone
+        return super().create(validated_data)
+
+
+class DepartmentalMeetingAttendanceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DepartmentalMeetingAttendance
+        fields = ['id', 'meeting', 'member_name', 'status', 'arrival_time', 'recorded_at']
+
+
+class DepartmentalMeetingSerializer(serializers.ModelSerializer):
+    department_name = serializers.ReadOnlyField(source='department.name')
+    attendances = DepartmentalMeetingAttendanceSerializer(many=True, read_only=True)
+    agenda_doc_url = serializers.SerializerMethodField()
+    minutes_doc_url = serializers.SerializerMethodField()
+    attendance_summary = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DepartmentalMeeting
+        fields = [
+            'id',
+            'department',
+            'department_name',
+            'title',
+            'meeting_ref',
+            'date',
+            'start_time',
+            'end_time',
+            'venue',
+            'chairperson',
+            'secretary',
+            'agenda',
+            'agenda_doc',
+            'agenda_doc_url',
+            'minutes_doc',
+            'minutes_doc_url',
+            'status',
+            'attendances',
+            'attendance_summary',
+            'created_by',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
+
+    def get_agenda_doc_url(self, obj):
+        if obj.agenda_doc:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.agenda_doc.url)
+            return obj.agenda_doc.url
+        return None
+
+    def get_minutes_doc_url(self, obj):
+        if obj.minutes_doc:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.minutes_doc.url)
+            return obj.minutes_doc.url
+        return None
+
+    def get_attendance_summary(self, obj):
+        total = obj.attendances.count()
+        if total == 0:
+            return {"total": 0, "present": 0, "absent_apology": 0, "absent_unexcused": 0, "percentage": 0.0}
+        present = obj.attendances.filter(status='PR').count()
+        apology = obj.attendances.filter(status='AA').count()
+        unexcused = obj.attendances.filter(status='WA').count()
+        return {
+            "total": total,
+            "present": present,
+            "absent_apology": apology,
+            "absent_unexcused": unexcused,
+            "percentage": round((present / total) * 100, 2)
+        }

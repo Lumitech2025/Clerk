@@ -15,9 +15,11 @@ from .models import (
     AbsenceApology,
     WeddingNotification,
     HolyCommunion,
-    Event
+    Event,
+    DepartmentalEvent,
+    DepartmentalMeeting,
+    DepartmentalMeetingAttendance
 )
-
 
 # ==========================================
 # INLINES FOR MEETING & DEPARTMENT MANAGEMENT
@@ -95,13 +97,33 @@ class BaptismAdmin(admin.ModelAdmin):
         'gender',
         'phone',
         'officiating_pastor',
+        'place_of_baptism',
+        'cbm_minute_no',
         'baptism_date',
         'status',
     )
     list_filter = ('status', 'gender', 'baptism_date')
-    search_fields = ('full_name', 'phone', 'email', 'officiating_pastor')
+    search_fields = ('full_name', 'phone', 'email', 'officiating_pastor', 'cbm_minute_no')
     list_editable = ('status',)
     date_hierarchy = 'baptism_date'
+
+    fieldsets = (
+        ('Candidate Details', {
+            'fields': ('full_name', 'dob', 'gender', 'phone', 'email')
+        }),
+        ('Parent Details', {
+            'fields': ('father_name', 'father_phone', 'mother_name', 'mother_phone')
+        }),
+        ('Ceremony & Church Minutes', {
+            'fields': ('officiating_pastor', 'place_of_baptism', 'baptism_date', 'cbm_minute_no')
+        }),
+        ('Documents & Attachments', {
+            'fields': ('baptism_info_form', 'baptism_card', 'cbm_minutes_doc')
+        }),
+        ('Status & Metadata', {
+            'fields': ('status', 'certificate_collected_at', 'member_profile', 'created_by')
+        }),
+    )
 
 
 @admin.register(ChildDedication)
@@ -434,6 +456,98 @@ class EventAdmin(admin.ModelAdmin):
     )
 
     readonly_fields = ('created_at', 'updated_at')
+
+
+
+
+@admin.register(DepartmentalEvent)
+class DepartmentalEventAdmin(admin.ModelAdmin):
+    list_display = (
+        'title',
+        'department',
+        'leader_in_charge',
+        'leader_phone',
+        'start_date',
+        'end_date',
+        'venue',
+        'status',
+        'created_by',
+    )
+    list_filter = ('status', 'department', 'start_date')
+    search_fields = ('title', 'venue', 'leader_in_charge', 'department__name', 'description')
+    date_hierarchy = 'start_date'
+    list_editable = ('status',)
+    readonly_fields = ('created_at', 'updated_at')
+
+    fieldsets = (
+        ('General Details', {
+            'fields': ('department', 'title', 'description', 'status')
+        }),
+        ('Leadership Details (Extracted from Department)', {
+            'fields': ('leader_in_charge', 'leader_phone')
+        }),
+        ('Schedule & Venue', {
+            'fields': (('start_date', 'end_date'), ('start_time', 'end_time'), 'venue')
+        }),
+        ('Budget & Publicity', {
+            'fields': ('budget_estimate', 'event_poster')
+        }),
+        ('System Information', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not change or not obj.created_by:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+class DepartmentalMeetingAttendanceInline(admin.TabularInline):
+    model = DepartmentalMeetingAttendance
+    extra = 1
+    fields = ('member_name', 'status', 'arrival_time', 'recorded_at')
+    readonly_fields = ('recorded_at',)
+
+
+@admin.register(DepartmentalMeeting)
+class DepartmentalMeetingAdmin(admin.ModelAdmin):
+    list_display = (
+        'title',
+        'department',
+        'date',
+        'start_time',
+        'venue',
+        'chairperson',
+        'status',
+        'created_by',
+    )
+    list_filter = ('status', 'department', 'date')
+    search_fields = ('title', 'meeting_ref', 'venue', 'chairperson', 'department__name')
+    date_hierarchy = 'date'
+    inlines = [DepartmentalMeetingAttendanceInline]
+    readonly_fields = ('created_at', 'updated_at')
+
+    fieldsets = (
+        ('General Information', {
+            'fields': ('department', 'title', 'meeting_ref', 'status')
+        }),
+        ('Schedule & Venue', {
+            'fields': (('date', 'start_time', 'end_time'), 'venue')
+        }),
+        ('Leadership & Documents', {
+            'fields': (('chairperson', 'secretary'), 'agenda', 'agenda_doc', 'minutes_doc')
+        }),
+        ('System Information', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        if not change or not obj.created_by:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
 try:
     admin.site.unregister(MeetingAttendance)

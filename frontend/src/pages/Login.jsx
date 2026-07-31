@@ -1,15 +1,15 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
-import { Church, Lock, User, AlertCircle, ArrowRight, Loader2, Shield } from 'lucide-react';
+import { Church, Lock, User, AlertCircle, ArrowRight, Loader2, Shield, Eye, EyeOff } from 'lucide-react';
 import bgImage from '../assets/newlife.jfif';
 
 const Login = () => {
   const navigate = useNavigate();
   const { login } = useContext(AuthContext);
   
-  // Aligned state key to 'username' to match input name and payload
   const [credentials, setCredentials] = useState({ username: '', password: '' });
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -44,20 +44,17 @@ const Login = () => {
         throw new Error(data.detail || 'Authentication failed. Please try again.');
       }
 
-      // Safely map response payload matching CustomTokenObtainPairSerializer
       const userProfile = data.user || {
         username: credentials.username,
         designation: data.designation || 'MEMBER',
         email: data.email || ''
       };
 
-      // Store in AuthContext & LocalStorage
       login(userProfile, {
         access: data.access,
         refresh: data.refresh
       });
 
-      // Navigate straight to dashboard dispatcher
       navigate('/dashboard', { replace: true });
 
     } catch (err) {
@@ -84,11 +81,12 @@ const Login = () => {
         }} />
       </div>
 
-      <div style={{ position: 'relative', zIndex: 10, width: '100%', maxWidth: '460px', padding: '24px', boxSizing: 'border-box' }}>
+      {/* Increased width to 520px */}
+      <div style={{ position: 'relative', zIndex: 10, width: '100%', maxWidth: '520px', padding: '24px', boxSizing: 'border-box' }}>
         <div style={{
           backgroundColor: 'rgba(12, 25, 38, 0.94)', backdropFilter: 'blur(16px)',
           borderRadius: '28px', border: '1px solid rgba(16, 185, 129, 0.3)',
-          padding: '44px 36px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)',
+          padding: '44px 38px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)',
           color: '#ffffff', textAlign: 'left'
         }}>
           <div style={{ textAlign: 'center', marginBottom: '28px' }}>
@@ -117,7 +115,7 @@ const Login = () => {
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '750', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.075em', marginBottom: '8px' }}>
+              <label style={{ display: 'block', fontSize: '15px', fontWeight: '750', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.075em', marginBottom: '10px' }}>
                 USER ID
               </label>
               <div style={{ position: 'relative' }}>
@@ -130,7 +128,7 @@ const Login = () => {
                   required
                   value={credentials.username}
                   onChange={handleChange}
-                  placeholder="Mwiti2026"
+                  placeholder="Ted2026"
                   style={{
                     width: '100%', paddingLeft: '48px', paddingRight: '18px', paddingTop: '14px', paddingBottom: '14px',
                     backgroundColor: '#e8f0fe', border: 'none', borderRadius: '14px', color: '#0f172a',
@@ -141,7 +139,7 @@ const Login = () => {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: '750', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.075em', marginBottom: '8px' }}>
+              <label style={{ display: 'block', fontSize: '15px', fontWeight: '750', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.075em', marginBottom: '10px' }}>
                 PASSWORD
               </label>
               <div style={{ position: 'relative' }}>
@@ -149,18 +147,31 @@ const Login = () => {
                   <Lock size={18} />
                 </div>
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   name="password"
                   required
                   value={credentials.password}
                   onChange={handleChange}
                   placeholder="••••••••••••"
                   style={{
-                    width: '100%', paddingLeft: '48px', paddingRight: '18px', paddingTop: '14px', paddingBottom: '14px',
+                    width: '100%', paddingLeft: '48px', paddingRight: '48px', paddingTop: '14px', paddingBottom: '14px',
                     backgroundColor: '#e8f0fe', border: 'none', borderRadius: '14px', color: '#0f172a',
                     fontWeight: '600', fontSize: '15px', boxSizing: 'border-box', outline: 'none'
                   }}
                 />
+                {/* Password reveal toggle button */}
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute', top: 0, bottom: 0, right: 0, paddingRight: '16px',
+                    display: 'flex', alignItems: 'center', background: 'none', border: 'none',
+                    cursor: 'pointer', color: '#475569', transition: 'color 0.2s'
+                  }}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
@@ -189,9 +200,9 @@ const Login = () => {
             </button>
           </form>
 
-          <div style={{ marginTop: '24px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px' }}>
+          <div style={{ marginTop: '28px', textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '18px' }}>
             <p style={{ fontSize: '11px', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-              <Shield size={14} style={{ color: '#10b981' }} /> Encrypted & ODPC Compliant
+              
             </p>
           </div>
         </div>

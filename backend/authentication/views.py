@@ -1,82 +1,102 @@
-from rest_framework import viewsets, permissions, status
-from rest_framework.views import APIView
+from django.conf import settings
+from rest_framework import viewsets, status, views
 from rest_framework.response import Response
-from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from rest_framework.permissions import AllowAny
-
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.contrib.auth import get_user_model
 
 from .serializers import (
     UserAdminRegistrationSerializer, 
-    CustomTokenObtainPairSerializer,
     CCISTokenObtainPairSerializer
 )
+from .permissions import IsChurchClerk
+
+from .throttling import LoginRateThrottle
 
 User = get_user_model()
-
 
 
 class CCISLoginView(TokenObtainPairView):
     """
     Primary Authentication Endpoint for CCIS.
-    Returns JWT Access/Refresh tokens + User RBAC profile context.
+    Sets Refresh Token in an HttpOnly cookie and returns Access Token + User profile context.
     """
     permission_classes = [AllowAny]
     serializer_class = CCISTokenObtainPairSerializer
-    serializer_class = CCISTokenObtainPairSerializer
+    throttle_classes = [LoginRateThrottle]
+
+    def post(self, request, *args, **kwargs):
+        response = super().post(request, *args, **kwargs)
+        if response.status_code == 200:
+            refresh_token = response.data.get('refresh')
+            
+            # Remove raw refresh token from response body
+            if 'refresh' in response.data:
+                del response.data['refresh']
+
+            # Set HttpOnly, Secure cookie (__Host- prefix in production)
+            cookie_name = '__Host-refresh_token' if not settings.DEBUG else 'refresh_token'
+            response.set_cookie(
+                key=cookie_name,
+                value=refresh_token,
+                httponly=True,
+                secure=not settings.DEBUG,  # True in production (HTTPS)
+                samesite='Lax',
+                path='/',
+                max_age=7 * 24 * 60 * 60  # 7 Days (matches SIMPLE_JWT REFRESH_TOKEN_LIFETIME)
+            )
+        return response
 
 
-# =====================================================================
-# CUSTOM RBAC PERMISSION CLASSES FOR CCIS API ENDPOINTS
-# =====================================================================
+class CCISTokenRefreshView(TokenRefreshView):
+    """
+    Extracts refresh token from HttpOnly cookie and issues a new access token.
+    Supports token rotation by setting a new refresh cookie if returned.
+    """
 
-class IsChurchClerk(permissions.BasePermission):
-    """Allows full access only to the Church Clerk desk."""
-    def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated 
-            and request.user.designation == 'CLERK'
-        )
-
-
-class IsPastoralOrElder(permissions.BasePermission):
-    """Allows access to Pastors and Elders (e.g., viewing confidential board minutes or member transfers)."""
-    def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated 
-            and request.user.designation in ['PASTOR', 'ELDER', 'CLERK']
-        )
-
-
-class IsAdministrativeStaff(permissions.BasePermission):
-    """Allows access across all 5 administrative roles (Clerk, Pastor, Elder, Communication, Dept Leader)."""
-    def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated 
-            and request.user.is_administrative_user
-        )
+    throttle_scope = 'refresh'
     
-class IsCommunicationTeam(permissions.BasePermission):
-    """Access for Church Communication desk (e.g., announcements, bulletins)."""
-    def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated 
-            and request.user.designation in ['COMMUNICATION', 'CLERK']
-        )
+    def post(self, request, *args, **kwargs):
+        cookie_name = '__Host-refresh_token' if not settings.DEBUG else 'refresh_token'
+        refresh_token = request.COOKIES.get(cookie_name) or request.COOKIES.get('refresh_token')
+        
+        if refresh_token:
+            mutable_data = request.data.copy()
+            mutable_data['refresh'] = refresh_token
+            request._full_data = mutable_data
 
-class IsDepartmentLeader(permissions.BasePermission):
-    """Access for Departmental Leaders (e.g., submitting TOR reports, requisition logs)."""
-    def has_permission(self, request, view):
-        return (
-            request.user.is_authenticated 
-            and request.user.designation in ['DEPT_LEADER', 'CLERK']
-        )
+        response = super().post(request, *args, **kwargs)
 
-class IsChurchMember(permissions.BasePermission):
-    """Base access for general church members (read-only announcements, transfer requests)."""
-    def has_permission(self, request, view):
-        return request.user.is_authenticated
+        # Handle token rotation if SimpleJWT returns a new refresh token
+        if response.status_code == 200 and 'refresh' in response.data:
+            new_refresh = response.data.get('refresh')
+            del response.data['refresh']
+            
+            response.set_cookie(
+                key=cookie_name,
+                value=new_refresh,
+                httponly=True,
+                secure=not settings.DEBUG,
+                samesite='Lax',
+                path='/',
+                max_age=7 * 24 * 60 * 60
+            )
+
+        return response
+
+
+class CCISLogoutView(views.APIView):
+    """
+    Clears HttpOnly refresh token cookie on user logout.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        response = Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
+        cookie_name = '__Host-refresh_token' if not settings.DEBUG else 'refresh_token'
+        response.delete_cookie(cookie_name, path='/')
+        response.delete_cookie('refresh_token', path='/')
+        return response
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -86,9 +106,4 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     queryset = User.objects.all().order_by('-date_joined')
     serializer_class = UserAdminRegistrationSerializer
-    
-    # Restrict user management endpoints strictly to Church Clerks / Administrative Staff
     permission_classes = [IsChurchClerk]
-
-    def get_serializer_class(self):
-        return UserAdminRegistrationSerializer

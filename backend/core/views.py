@@ -1,4 +1,7 @@
-# core/views.py
+import json
+from django.utils import timezone
+from django.db.models import Count, Q
+from django.db.models.functions import TruncMonth
 
 from rest_framework import viewsets, status, permissions, filters
 from rest_framework.decorators import action
@@ -7,100 +10,49 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
-from django.utils import timezone
-from django.db.models import Count, Q
-from django.db.models.functions import TruncMonth
 
 MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-# Models
+# --- MODELS ---
 from .models import (
     MemberRecord, BaptismRecord, ChildDedication,
     WeddingNotification, Department, DepartmentRole, ChurchWorker, DepartmentalReport,
     Bulletin, Meeting, MeetingAttendance, AttendanceSheetUpload,
-    AbsenceApology, HolyCommunion, Event
+    AbsenceApology, HolyCommunion, Event, DepartmentalEvent, 
+    DepartmentalMeetingAttendance, DepartmentalMeeting
 )
 
-# Serializers
+# --- SERIALIZERS ---
 from .serializers import (
     MemberRecordSerializer, BaptismSerializer, ChildDedicationSerializer,
     WeddingNotificationSerializer, DepartmentSerializer, DepartmentRoleSerializer,
     ChurchWorkerSerializer, DepartmentalReportSerializer, BulletinSerializer, 
     MeetingSerializer, MeetingAttendanceSerializer, AttendanceSheetUploadSerializer, 
-    AbsenceApologySerializer, DashboardAnalyticsSerializer, HolyCommunionSerializer, EventSerializer
+    AbsenceApologySerializer, DashboardAnalyticsSerializer, HolyCommunionSerializer, 
+    EventSerializer, DepartmentalEventSerializer, DepartmentalMeetingAttendanceSerializer, 
+    DepartmentalMeetingSerializer
 )
 
-# Services
+# --- CENTRALIZED PERMISSIONS ---
+from authentication.permissions import (
+    get_user_role,
+    IsChurchClerk,
+    IsLeadershipReadOnlyOrClerkWrite,
+    IsCommunicationOrClerk,
+    IsClerkOrPastorOrElder,
+    DepartmentalReportPermission,
+    CanManageDepartmentEvents,
+    IsDepartmentLeaderOrLeadershipForMeeting,
+    RoleBasedEventAccessPermission
+)
+
+# --- SERVICES ---
 from .services import (
     send_welcome_baptism_notifications, 
     send_certificate_reminder_notifications,
     send_welcome_dedication_notifications,
     send_dedication_certificate_reminder_notifications
 )
-
-# Centralized Role Extraction Helper
-def get_user_role(user):
-    if not user or not user.is_authenticated:
-        return ""
-    
-    designation = (
-        getattr(user, 'designation', None) 
-        or getattr(user, 'role', None) 
-        or getattr(getattr(user, 'profile', None), 'role', '')
-    )
-    
-    return str(designation).upper().strip()
-
-# --- CUSTOM PERMISSION CLASSES ---
-
-class IsChurchClerk(permissions.BasePermission):
-    """Restricts write access strictly to Church Clerks and Superusers."""
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.user.is_superuser:
-            return True
-        return get_user_role(request.user) in ['CLERK', 'CHURCH_CLERK']
-
-
-class IsLeadershipReadOnlyOrClerkWrite(permissions.BasePermission):
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.user.is_superuser:
-            return True
-
-        role = get_user_role(request.user)
-        if role in ['CLERK', 'CHURCH_CLERK']:
-            return True
-        if request.method in permissions.SAFE_METHODS and role in ['PASTOR', 'ELDER']:
-            return True
-        return False
-
-
-class IsCommunicationOrClerk(permissions.BasePermission):
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.user.is_superuser:
-            return True
-
-        role = get_user_role(request.user)
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        return role in ['CLERK', 'CHURCH_CLERK', 'COMMUNICATION']
-
-
-class IsClerkOrPastorOrElder(permissions.BasePermission):
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        if request.user.is_superuser:
-            return True
-
-        role = get_user_role(request.user)
-        allowed = ['CLERK', 'CHURCH_CLERK', 'PASTOR', 'ELDER', 'ADMIN']
-        return role in allowed or request.user.groups.filter(name__iregex=r'^(clerk|pastor|elder|admin)s?$').exists()
 
 
 # --- PAGINATION ---
@@ -131,6 +83,11 @@ class BaptismViewSet(viewsets.ModelViewSet):
     queryset = BaptismRecord.objects.all().order_by('-created_at')
     serializer_class = BaptismSerializer
     permission_classes = [IsAuthenticated, IsLeadershipReadOnlyOrClerkWrite]
+    parser_classes = (MultiPartParser, FormParser, JSONParser)  # Enforces file upload handling
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'gender', 'baptism_date']
+    search_fields = ['full_name', 'phone', 'email', 'officiating_pastor', 'cbm_minute_no']
+    ordering_fields = ['baptism_date', 'full_name', 'created_at']
 
     def perform_create(self, serializer):
         instance = serializer.save(created_by=self.request.user)
@@ -263,10 +220,13 @@ class ChurchWorkerViewSet(viewsets.ModelViewSet):
 
 
 class DepartmentalReportViewSet(viewsets.ModelViewSet):
-    """Quarterly and monthly departmental reports."""
-    queryset = DepartmentalReport.objects.all()
+    """
+    Centralized archive for departmental reports.
+    All authenticated roles can view all uploaded reports.
+    """
+    queryset = DepartmentalReport.objects.all().select_related('department').order_by('-date')
     serializer_class = DepartmentalReportSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, DepartmentalReportPermission]
     parser_classes = (MultiPartParser, FormParser, JSONParser)
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['department', 'report_type']
@@ -276,13 +236,18 @@ class DepartmentalReportViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         role = get_user_role(user)
-        base_qs = DepartmentalReport.objects.all()
 
-        if user.is_superuser or role in ['CLERK', 'CHURCH_CLERK', 'PASTOR', 'ELDER']:
-            return base_qs
+        viewable_roles = [
+            'CLERK', 'CHURCH_CLERK', 
+            'PASTOR', 
+            'ELDER', 
+            'COMMUNICATION', 
+            'DEPARTMENT_LEADER', 'DEPT_LEADER', 
+            'MEMBER'
+        ]
 
-        if role == 'DEPARTMENT_LEADER':
-            return base_qs.filter(department__leader=user)
+        if user.is_superuser or role in viewable_roles:
+            return DepartmentalReport.objects.all().select_related('department').order_by('-date')
 
         return DepartmentalReport.objects.none()
 
@@ -305,10 +270,10 @@ class BulletinViewSet(viewsets.ModelViewSet):
         message = (
             f"*NEWLIFE SDA CHURCH - WEEKLY BULLETIN*\n"
             f"📅 *Sabbath Date:* {formatted_date}\n"
-            f"📖 *Title:* {bulletin.title}\n\n"
+            f"📰 *Title:* {bulletin.title}\n\n"
             f"Greetings saints! Please find the official church bulletin for this Sabbath attached below or download it directly using the link:\n"
             f"🔗 {file_url}\n\n"
-            f"Blessed Sabbath! ✨"
+            f"Blessed Sabbath! 🙏"
         )
 
         return Response({
@@ -561,21 +526,6 @@ class HolyCommunionViewSet(viewsets.ModelViewSet):
         serializer.save()
 
 
-class RoleBasedEventAccessPermission(permissions.BasePermission):
-    def has_permission(self, request, view):
-        if request.method in permissions.SAFE_METHODS:
-            return request.user.is_authenticated
-
-        user = request.user
-        user_role = getattr(user, 'role', None)
-        
-        return (
-            user.is_staff or 
-            user.is_superuser or 
-            user_role in ['CHURCH_CLERK', 'PASTOR']
-        )
-
-
 class EventViewSet(viewsets.ModelViewSet):
     serializer_class = EventSerializer
     permission_classes = [RoleBasedEventAccessPermission]
@@ -616,10 +566,133 @@ class EventViewSet(viewsets.ModelViewSet):
         qs = Event.objects.filter(target_audience__in=allowed_audiences)
 
         if timeframe == 'upcoming':
-            from django.utils import timezone
             qs = qs.filter(start_date__gte=timezone.now().date())
 
         return qs
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+
+class DepartmentalEventViewSet(viewsets.ModelViewSet):
+    """ViewSet for managing Departmental Events."""
+    queryset = DepartmentalEvent.objects.all().select_related('department')
+    serializer_class = DepartmentalEventSerializer
+    permission_classes = [permissions.IsAuthenticated, CanManageDepartmentEvents]
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['department', 'status', 'start_date']
+    search_fields = ['title', 'description', 'venue', 'leader_in_charge', 'department__name']
+    ordering_fields = ['start_date', 'start_time', 'created_at']
+    ordering = ['start_date', 'start_time']
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return DepartmentalEvent.objects.none()
+
+        role = get_user_role(user)
+        base_qs = DepartmentalEvent.objects.select_related('department').all()
+
+        if user.is_superuser or role in ['CLERK', 'CHURCH_CLERK', 'PASTOR', 'ELDER', 'ADMIN']:
+            return base_qs
+
+        if role in ['DEPT_LEADER', 'DEPARTMENT_LEADER']:
+            return base_qs.filter(
+                Q(department__leader__icontains=user.get_full_name() or user.username) |
+                Q(created_by=user) |
+                Q(status=DepartmentalEvent.EventStatus.APPROVED) |
+                Q(status=DepartmentalEvent.EventStatus.PROPOSED)
+            ).distinct()
+
+        return base_qs.filter(status__in=[
+            DepartmentalEvent.EventStatus.APPROVED,
+            DepartmentalEvent.EventStatus.ONGOING,
+            DepartmentalEvent.EventStatus.COMPLETED
+        ])
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='approve', permission_classes=[IsClerkOrPastorOrElder])
+    def approve_event(self, request, pk=None):
+        """Action for Clerk/Pastor/Elder to formally approve a proposed event."""
+        event = self.get_object()
+        event.status = DepartmentalEvent.EventStatus.APPROVED
+        event.save()
+        return Response({
+            'status': 'Approved',
+            'message': f"Departmental event '{event.title}' has been approved successfully."
+        }, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'], url_path='upcoming')
+    def upcoming(self, request):
+        """Action to list upcoming approved/proposed departmental events."""
+        today = timezone.localtime(timezone.now()).date()
+        qs = self.get_queryset().filter(
+            start_date__gte=today,
+            status__in=[DepartmentalEvent.EventStatus.APPROVED, DepartmentalEvent.EventStatus.PROPOSED]
+        ).order_by('start_date', 'start_time')
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class DepartmentalMeetingViewSet(viewsets.ModelViewSet):
+    """API ViewSet for managing Departmental Meetings."""
+    queryset = DepartmentalMeeting.objects.all().select_related('department')
+    serializer_class = DepartmentalMeetingSerializer
+    permission_classes = [permissions.IsAuthenticated, IsDepartmentLeaderOrLeadershipForMeeting]
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['department', 'status', 'date']
+    search_fields = ['title', 'meeting_ref', 'venue', 'chairperson', 'secretary', 'department__name']
+    ordering_fields = ['date', 'start_time', 'created_at']
+    ordering = ['-date', '-start_time']
+
+    def get_queryset(self):
+        user = self.request.user
+        if not user.is_authenticated:
+            return DepartmentalMeeting.objects.none()
+
+        role = get_user_role(user)
+        base_qs = DepartmentalMeeting.objects.select_related('department').all()
+
+        if user.is_superuser or role in ['CLERK', 'CHURCH_CLERK', 'PASTOR', 'ELDER', 'ADMIN', 'COMMUNICATION']:
+            return base_qs
+
+        if role in ['DEPT_LEADER', 'DEPARTMENT_LEADER']:
+            return base_qs.filter(
+                Q(department__leader__icontains=user.get_full_name() or user.username) |
+                Q(created_by=user)
+            ).distinct()
+
+        return base_qs
+
+    def perform_create(self, serializer):
+        meeting = serializer.save(created_by=self.request.user)
+        
+        members_present_raw = self.request.data.get('members_present')
+        if members_present_raw:
+            try:
+                members_list = json.loads(members_present_raw) if isinstance(members_present_raw, str) else members_present_raw
+                attendance_objects = [
+                    DepartmentalMeetingAttendance(
+                        meeting=meeting,
+                        member_name=item.get('name'),
+                        status='PR'
+                    )
+                    for item in members_list if item.get('name')
+                ]
+                DepartmentalMeetingAttendance.objects.bulk_create(attendance_objects)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                pass
+
+
+class DepartmentalMeetingAttendanceViewSet(viewsets.ModelViewSet):
+    """API ViewSet for managing attendance records for departmental meetings."""
+    queryset = DepartmentalMeetingAttendance.objects.all()
+    serializer_class = DepartmentalMeetingAttendanceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['meeting', 'status']
+    search_fields = ['member_name']

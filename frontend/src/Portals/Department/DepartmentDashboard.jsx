@@ -3,26 +3,28 @@ import { AuthContext } from '../../context/AuthContext';
 import API from '../../api/api';
 import DepartmentSidebar from './DepartmentSidebar';
 
-// Reusing Pastoral/Departmental Shared Modules
-import PastorDepartments from '../pastor/modules/PastorDepartments';
-import PastorMeetingRecords from '../pastor/modules/MeetingRecords';
+// Departmental Shared Workspace Modules
+import DepartmentPortal from '../Department/modules/DepartmentPortal';
+import DepartmentEventsWorkspace from '../Department/modules/DepartmentEventsWorkspace';
+import Departmentalmeetings from '../Department/modules/Departmentmeetings';
+import Reports from '../Department/modules/Reports';
 
 // Icons
 import { 
   FaBuilding, 
   FaCalendarAlt, 
-  FaHourglassHalf, 
-  FaFolderOpen,
+  FaFileAlt, 
   FaArrowRight,
   FaSpinner,
-  FaFileAlt,
   FaClock,
   FaMapMarkerAlt,
-  FaPlus,
-  FaCheckCircle
+  FaCheckCircle,
+  FaHourglassHalf,
+  FaUsers,
+  FaChartLine
 } from 'react-icons/fa';
 
-import { Upload, X, FileSpreadsheet, Image as ImageIcon } from 'lucide-react';
+import { X, FileSpreadsheet, Image as ImageIcon } from 'lucide-react';
 
 import { 
   BarChart, 
@@ -35,24 +37,36 @@ import {
   ResponsiveContainer 
 } from 'recharts';
 
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Helper to generate empty 12-month calendar template
+const createEmptyYearData = () => MONTH_NAMES.map(month => ({
+  month,
+  Events: 0,
+  Meetings: 0,
+  Reports: 0
+}));
+
 const DepartmentDashboard = () => {
   const { user, logout } = useContext(AuthContext);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Graph Filter Toggle ('All', 'Events', 'Reports', 'Budgets')
+  // Graph Filter Toggle ('All', 'Events', 'Meetings', 'Reports')
   const [chartFilter, setChartFilter] = useState('All');
 
   // Role resolution
-  const currentUserRole = user?.role || user?.designation || 'Department Leader';
+  const currentUserRole = user?.role || user?.designation || 'Church Clerk';
 
-  const [departmentMetricsData, setDepartmentMetricsData] = useState([]);
+  // Analytics State spanning Jan -> Dec
+  const [departmentMetricsData, setDepartmentMetricsData] = useState(createEmptyYearData());
+
   const [kpiStats, setKpiStats] = useState({
     totalDepartments: 0,
     upcomingEventsCount: 0,
-    pendingProposalsCount: 0,
-    archivedMediaCount: 0,
+    meetingsLoggedCount: 0,
+    reportsSubmittedCount: 0,
   });
 
   // Upcoming Events State
@@ -64,47 +78,97 @@ const DepartmentDashboard = () => {
   const [importFile, setImportFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  // Fetch real analytics and KPI metrics from Django API
+  // Fetch real analytics & records directly from Django models
   const fetchDepartmentAnalytics = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [analyticsRes, eventsRes] = await Promise.all([
-        API.get('departments/analytics/').catch((err) => {
-          console.error("Department analytics fetch failed:", err);
-          return null;
-        }),
-        API.get('events/upcoming/').catch((err) => {
-          console.error("Upcoming events fetch failed:", err);
-          return null;
-        })
+      const [analyticsRes, deptsRes, eventsRes, meetingsRes, reportsRes] = await Promise.all([
+        API.get('departments/analytics/').catch(() => null),
+        API.get('departments/').catch(() => null),
+        API.get('departmental-events/').catch(() => null),
+        API.get('departmental-meetings/').catch(() => null),
+        API.get('departmental-reports/').catch(() => null),
       ]);
 
-      // Parse Events
+      // 1. Calculate Exact Department Count (Department model)
+      let deptsList = [];
+      if (deptsRes?.data) {
+        deptsList = Array.isArray(deptsRes.data) ? deptsRes.data : deptsRes.data.results || [];
+      }
+      const actualDeptCount = deptsList.length > 0 
+        ? deptsList.length 
+        : (analyticsRes?.data?.total_departments || 0);
+
+      // 2. Parse Departmental Events
       let fetchedEvents = [];
       if (eventsRes?.data) {
-        if (Array.isArray(eventsRes.data)) {
-          fetchedEvents = eventsRes.data;
-        } else if (Array.isArray(eventsRes.data.results)) {
-          fetchedEvents = eventsRes.data.results;
-        }
+        fetchedEvents = Array.isArray(eventsRes.data) ? eventsRes.data : eventsRes.data.results || [];
       }
-      setEventsList(fetchedEvents);
+      setEventsList(fetchedEvents.slice(0, 5)); // Display top 5 upcoming
 
-      // Parse KPI Metrics
-      if (analyticsRes?.data) {
-        const data = analyticsRes.data;
-        setKpiStats({
-          totalDepartments: data.total_departments || 14,
-          upcomingEventsCount: data.upcoming_events_count ?? fetchedEvents.length,
-          pendingProposalsCount: data.pending_board_proposals || 0,
-          archivedMediaCount: data.archived_media_total || 0,
+      // 3. Parse Departmental Meetings
+      let meetingsList = [];
+      if (meetingsRes?.data) {
+        meetingsList = Array.isArray(meetingsRes.data) ? meetingsRes.data : meetingsRes.data.results || [];
+      }
+
+      // 4. Parse Departmental Reports (DepartmentalReport model)
+      let reportsList = [];
+      if (reportsRes?.data) {
+        reportsList = Array.isArray(reportsRes.data) ? reportsRes.data : reportsRes.data.results || [];
+      }
+
+      // Set Updated KPI Cards
+      setKpiStats({
+        totalDepartments: actualDeptCount,
+        upcomingEventsCount: analyticsRes?.data?.upcoming_events_count ?? fetchedEvents.length,
+        meetingsLoggedCount: analyticsRes?.data?.meetings_count ?? meetingsList.length,
+        reportsSubmittedCount: analyticsRes?.data?.total_reports ?? reportsList.length,
+      });
+
+      // 5. Construct 12-Month Bar Graph Dataset (Jan -> Dec)
+      const fullYearData = createEmptyYearData();
+
+      if (Array.isArray(analyticsRes?.data?.monthly_department_metrics) && analyticsRes.data.monthly_department_metrics.length > 0) {
+        // Merge API analytics response into 12-month array
+        analyticsRes.data.monthly_department_metrics.forEach(item => {
+          const index = fullYearData.findIndex(m => m.month.toLowerCase() === item.month?.toLowerCase());
+          if (index !== -1) {
+            fullYearData[index].Events = item.Events || 0;
+            fullYearData[index].Meetings = item.Meetings || 0;
+            fullYearData[index].Reports = item.Reports || 0;
+          }
+        });
+      } else {
+        // Dynamically aggregate counts per month from fetched model lists
+        fetchedEvents.forEach(evt => {
+          const dStr = evt.start_date || evt.date;
+          if (dStr) {
+            const monthIdx = new Date(dStr).getMonth();
+            if (monthIdx >= 0 && monthIdx < 12) fullYearData[monthIdx].Events += 1;
+          }
         });
 
-        if (Array.isArray(data.monthly_department_metrics) && data.monthly_department_metrics.length > 0) {
-          setDepartmentMetricsData(data.monthly_department_metrics);
-        }
+        meetingsList.forEach(mtg => {
+          const dStr = mtg.date;
+          if (dStr) {
+            const monthIdx = new Date(dStr).getMonth();
+            if (monthIdx >= 0 && monthIdx < 12) fullYearData[monthIdx].Meetings += 1;
+          }
+        });
+
+        reportsList.forEach(rpt => {
+          const dStr = rpt.date || rpt.uploaded_at;
+          if (dStr) {
+            const monthIdx = new Date(dStr).getMonth();
+            if (monthIdx >= 0 && monthIdx < 12) fullYearData[monthIdx].Reports += 1;
+          }
+        });
       }
+
+      setDepartmentMetricsData(fullYearData);
+
     } catch (err) {
       console.error('Failed to load Department analytics:', err);
       setError('Failed to fetch departmental metrics.');
@@ -117,7 +181,7 @@ const DepartmentDashboard = () => {
     fetchDepartmentAnalytics();
   }, [fetchDepartmentAnalytics]);
 
-  // Handle Form/File Uploads
+  // Handle Document Uploads
   const handleImportSubmit = async (e) => {
     e.preventDefault();
     if (!importFile) return;
@@ -143,12 +207,40 @@ const DepartmentDashboard = () => {
     }
   };
 
-  // Quick Navigation Shortcuts
+  // Operational Directory Shortcuts
   const quickAccessModules = [
-    { id: 1, title: 'Departments & TORs',  targetTab: 'departments' },
-    { id: 2, title: 'Events Calendar',  targetTab: 'events' },
-    { id: 3, title: 'Minutes & Budgets',  targetTab: 'reports' },
-    { id: 4, title: 'Activities & Media Archive',  targetTab: 'archives' }
+    { 
+      id: 1, 
+      title: 'Departments & TORs', 
+      desc: 'Roles, leadership rosters & terms of reference', 
+      targetTab: 'departments', 
+      icon: FaBuilding,
+      color: 'text-emerald-600 bg-emerald-500/10'
+    },
+    { 
+      id: 2, 
+      title: 'Events Calendar', 
+      desc: 'Church events & board approval statuses', 
+      targetTab: 'events', 
+      icon: FaCalendarAlt,
+      color: 'text-blue-600 bg-blue-500/10'
+    },
+    { 
+      id: 3, 
+      title: 'Departmental Meetings', 
+      desc: 'Tabled agendas, confirmed minutes & attendance logs', 
+      targetTab: 'meetings', 
+      icon: FaUsers,
+      color: 'text-purple-600 bg-purple-500/10'
+    },
+    { 
+      id: 4, 
+      title: 'Reports & Budgets', 
+      desc: 'Quarterly departmental submissions & financial requests', 
+      targetTab: 'reports', 
+      icon: FaFileAlt,
+      color: 'text-amber-600 bg-amber-500/10'
+    }
   ];
 
   return (
@@ -165,16 +257,6 @@ const DepartmentDashboard = () => {
       {/* MAIN WORKSPACE CONTAINER */}
       <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
         
-        {/* WORKSPACE HEADER / TOP ACTIONS */}
-        <div className="bg-white border-b border-slate-200 px-6 py-3.5 flex items-center justify-between shrink-0">
-          <div>
-            <h1 className="text-lg font-black text-slate-900 tracking-tight uppercase">Departmental Portal</h1>
-            
-          </div>
-
-          
-        </div>
-
         {/* WORKSPACE BODY */}
         <main className="flex-1 p-5 overflow-hidden flex flex-col justify-between gap-4">
           
@@ -190,7 +272,7 @@ const DepartmentDashboard = () => {
           {activeTab === 'dashboard' && (
             <div className="flex-1 flex flex-col justify-between gap-4 overflow-hidden">
               
-              {/* TIER 1: ENLARGED KPI CARDS */}
+              {/* TIER 1: ENLARGED CHURCH CLERK KPI CARDS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 shrink-0">
                 <StatCard 
                   title="Active Departments" 
@@ -207,29 +289,30 @@ const DepartmentDashboard = () => {
                   iconBg="bg-blue-500/10 text-blue-600"
                 />
                 <StatCard 
-                  title="Pending Board Approvals" 
-                  value={loading ? '...' : kpiStats.pendingProposalsCount} 
-                  icon={FaHourglassHalf} 
+                  title="Meetings & Minutes Filed" 
+                  value={loading ? '...' : kpiStats.meetingsLoggedCount} 
+                  icon={FaUsers} 
+                  valueColor="text-purple-600"
+                  iconBg="bg-purple-500/10 text-purple-600"
+                />
+                <StatCard 
+                  title="Reports Submitted" 
+                  value={loading ? '...' : kpiStats.reportsSubmittedCount} 
+                  icon={FaFileAlt} 
                   valueColor="text-amber-600"
                   iconBg="bg-amber-500/10 text-amber-600"
                 />
-                <StatCard 
-                  title="Archived Media Proofs" 
-                  value={loading ? '...' : kpiStats.archivedMediaCount} 
-                  icon={FaFolderOpen} 
-                  valueColor="text-indigo-600"
-                  iconBg="bg-indigo-500/10 text-indigo-600"
-                />
               </div>
 
-              {/* TIER 2: ASYMMETRIC GRID */}
+              {/* TIER 2: ASYMMETRIC GRID (EVENTS & 12-MONTH ANALYTICS) */}
               <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 flex-1 min-h-0">
                 
                 {/* UPCOMING DEPARTMENTAL EVENTS MODULE */}
                 <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col h-full min-h-0">
                   <div className="flex items-center justify-between mb-3 shrink-0">
                     <div>
-                      <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Upcoming Departmental Events</h2>
+                      <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Upcoming Church Events</h2>
+                      <p className="text-xs font-medium text-slate-500 mt-0.5">Schedules submitted for clerk & board review</p>
                     </div>
                     <span className="text-xs font-black text-emerald-800 bg-emerald-100/80 border border-emerald-300/60 px-3 py-1 rounded-lg uppercase tracking-wider">
                       {eventsList.length} Scheduled
@@ -246,15 +329,15 @@ const DepartmentDashboard = () => {
                       <div className="h-full flex flex-col items-center justify-center text-center p-4">
                         <FaCalendarAlt className="w-9 h-9 text-slate-300 mb-2" />
                         <p className="text-sm font-bold text-slate-600">No scheduled activities</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Submit new events for board review.</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Department leaders can submit new events.</p>
                       </div>
                     ) : (
                       eventsList.map((evt) => {
                         const eventCategory = evt.department_name || evt.category || 'General';
-                        const eventDate = evt.date || evt.startDate || 'TBD';
-                        const eventTime = evt.time || evt.startTime || 'All Day';
-                        const eventLocation = evt.location || evt.venue || 'Main Sanctuary';
-                        const status = evt.status || 'Approved';
+                        const eventDate = evt.start_date || evt.date || 'TBD';
+                        const eventTime = evt.start_time || evt.time || 'All Day';
+                        const eventLocation = evt.venue || evt.location || 'Main Sanctuary';
+                        const status = evt.status || 'PROPOSED';
 
                         return (
                           <div 
@@ -266,7 +349,7 @@ const DepartmentDashboard = () => {
                                 <span className="inline-block text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
                                   {eventCategory}
                                 </span>
-                                {status === 'Approved' ? (
+                                {status === 'APPROVED' ? (
                                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                                     <FaCheckCircle className="w-2.5 h-2.5" /> Approved
                                   </span>
@@ -299,27 +382,29 @@ const DepartmentDashboard = () => {
                   </div>
 
                   <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between shrink-0">
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Board Workflow</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Clerk Desk Workflow</span>
                     <button 
                       onClick={() => setActiveTab('events')}
                       className="text-xs font-extrabold text-emerald-700 hover:text-emerald-800 flex items-center gap-1.5 cursor-pointer transition"
                     >
-                      View Calendar <FaArrowRight className="w-3 h-3" />
+                      View Full Calendar <FaArrowRight className="w-3 h-3" />
                     </button>
                   </div>
                 </div>
 
-                {/* GRAPH MODULE */}
+                {/* GRAPH MODULE: 12-MONTH DEPARTMENTAL FILINGS (JAN - DEC) */}
                 <div className="lg:col-span-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col h-full min-h-0">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2 shrink-0">
                     <div>
-                      <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Departmental Activity & Filings</h2>
-                      <p className="text-xs font-medium text-slate-500 mt-0.5">Quarterly reports, events, and document submissions</p>
+                      <h2 className="text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                        <FaChartLine className="text-emerald-600 w-5 h-5" /> Departmental Submissions & Activity
+                      </h2>
+                      <p className="text-xs font-medium text-slate-500 mt-0.5">Annual tracking of events, logged minutes, and submitted reports (Jan - Dec)</p>
                     </div>
 
                     {/* Interactive Filter Toggle */}
                     <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-                      {['All', 'Events', 'Reports', 'Budgets'].map((filter) => (
+                      {['All', 'Events', 'Meetings', 'Reports'].map((filter) => (
                         <button
                           key={filter}
                           onClick={() => setChartFilter(filter)}
@@ -344,7 +429,7 @@ const DepartmentDashboard = () => {
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={departmentMetricsData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
-                          <XAxis dataKey="month" tickLine={false} tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }} />
+                          <XAxis dataKey="month" tickLine={false} tick={{ fill: '#475569', fontSize: 11, fontWeight: 600 }} />
                           <YAxis allowDecimals={false} tickLine={false} tick={{ fill: '#475569', fontSize: 12, fontWeight: 600 }} />
                           <Tooltip contentStyle={{ backgroundColor: '#020617', borderRadius: '12px', border: 'none', color: '#fff', fontSize: '12px', fontWeight: '500', padding: '10px 14px' }} />
                           <Legend wrapperStyle={{ fontSize: '12px', fontWeight: 600, paddingTop: '8px' }} />
@@ -352,11 +437,11 @@ const DepartmentDashboard = () => {
                           {(chartFilter === 'All' || chartFilter === 'Events') && (
                             <Bar dataKey="Events" name="Events Conducted" fill="#10B981" radius={[4, 4, 0, 0]} />
                           )}
-                          {(chartFilter === 'All' || chartFilter === 'Reports') && (
-                            <Bar dataKey="Reports" name="Quarterly Reports" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                          {(chartFilter === 'All' || chartFilter === 'Meetings') && (
+                            <Bar dataKey="Meetings" name="Meetings & Minutes Filed" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
                           )}
-                          {(chartFilter === 'All' || chartFilter === 'Budgets') && (
-                            <Bar dataKey="Budgets" name="Proposals Submitted" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+                          {(chartFilter === 'All' || chartFilter === 'Reports') && (
+                            <Bar dataKey="Reports" name="Proposals & Reports" fill="#F59E0B" radius={[4, 4, 0, 0]} />
                           )}
                         </BarChart>
                       </ResponsiveContainer>
@@ -366,60 +451,75 @@ const DepartmentDashboard = () => {
 
               </div>
 
-              {/* TIER 3: QUICK ACCESS REPOSITORY SHORTCUTS */}
+              {/* TIER 3: OPERATIONS DIRECTORY SHORTCUTS */}
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs shrink-0">
-                <div className="mb-3">
-                  <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">Departmental Operations Directory</h2>
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">Church Clerk Operations Directory</h2>
+                  <span className="text-xs font-bold text-slate-400">Quick Access to Key Desk Modules</span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {quickAccessModules.map((item) => (
-                    <div 
-                      key={item.id} 
-                      onClick={() => setActiveTab(item.targetTab)}
-                      className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-emerald-500 hover:bg-emerald-50/20 transition cursor-pointer group"
-                    >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-500 group-hover:text-white transition">
-                          <FaFileAlt className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-extrabold text-slate-900 leading-snug group-hover:text-emerald-700 transition truncate">{item.title}</h3>
-                          <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">{item.date}</p>
-                        </div>
-                      </div>
-
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveTab(item.targetTab);
-                        }}
-                        className="p-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl transition shadow-xs cursor-pointer shrink-0 ml-2"
+                  {quickAccessModules.map((item) => {
+                    const IconComponent = item.icon;
+                    return (
+                      <div 
+                        key={item.id} 
+                        onClick={() => setActiveTab(item.targetTab)}
+                        className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-emerald-500 hover:bg-emerald-50/20 transition cursor-pointer group"
                       >
-                        <FaArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className={`w-11 h-11 rounded-xl ${item.color} flex items-center justify-center shrink-0 group-hover:bg-emerald-500 group-hover:text-white transition`}>
+                            <IconComponent className="w-5 h-5" />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-extrabold text-slate-900 leading-snug group-hover:text-emerald-700 transition truncate">{item.title}</h3>
+                            <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">{item.desc}</p>
+                          </div>
+                        </div>
+
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveTab(item.targetTab);
+                          }}
+                          className="p-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl transition shadow-xs cursor-pointer shrink-0 ml-2"
+                        >
+                          <FaArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
             </div>
           )}
 
-          {/* OTHER TAB MODULES */}
+          {/* WORKSPACE TAB MODULE ROUTING */}
           {activeTab === 'departments' ? (
             <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-5">
-              <PastorDepartments />
+              <DepartmentPortal />
             </div>
-          ) : activeTab === 'meetings' ? (
+          ) : 
+          activeTab === 'meetings' ? (
             <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-5">
-              <PastorMeetingRecords />
+              <Departmentalmeetings />
             </div>
-          ) : activeTab !== 'dashboard' && (
+          ) : 
+          activeTab === 'events' ? (
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-5">
+              <DepartmentEventsWorkspace />
+            </div>
+          ) : 
+          activeTab === 'reports' ? (
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-5">
+              <Reports />
+            </div>
+          ) : 
+          activeTab !== 'dashboard' && (
             <div className="p-6 bg-white rounded-2xl shadow-xs border border-slate-200 flex flex-col items-center justify-center h-full text-center">
               <ImageIcon className="w-12 h-12 text-slate-300 mb-3" />
               <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{activeTab} Workspace</h2>
-              
             </div>
           )}
 
@@ -443,7 +543,7 @@ const DepartmentDashboard = () => {
               </div>
               <div>
                 <h3 className="font-extrabold text-slate-900 text-lg tracking-tight">Upload Department Record</h3>
-                <p className="text-xs text-slate-500 font-medium">Submit minutes, proposals, or activity photos</p>
+                <p className="text-xs text-slate-500 font-medium">Submit minutes, proposals, or activity reports</p>
               </div>
             </div>
 
@@ -497,7 +597,7 @@ const DepartmentDashboard = () => {
   );
 };
 
-// Enlarged KPI Stat Card Component
+// KPI Stat Card Component
 const StatCard = ({ title, value, icon: Icon, valueColor, iconBg }) => {
   return (
     <div className="bg-white px-6 py-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">

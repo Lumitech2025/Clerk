@@ -1,14 +1,23 @@
-// src/api/api.js
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 const API = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true, // Crucial: Allows browser to send and receive HttpOnly cookies
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// In-Memory Access Token Storage (Prevents XSS theft via localStorage)
+let memoryAccessToken = null;
+
+export const setAuthToken = (token) => {
+  memoryAccessToken = token;
+};
+
+export const getAuthToken = () => memoryAccessToken;
 
 // Flag and queue to prevent multiple simultaneous refresh calls
 let isRefreshing = false;
@@ -25,29 +34,26 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-// 1. Request Interceptor: Attach Access Token
+// 1. Request Interceptor: Attach In-Memory Access Token
 API.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (memoryAccessToken) {
+      config.headers.Authorization = `Bearer ${memoryAccessToken}`;
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// 2. Response Interceptor: Silent Token Refresh & Error Handling
+// 2. Response Interceptor: Silent Refresh via Cookie
 API.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
-      // ✅ FIX 1: Match backend route '/auth/refresh/'
       if (originalRequest.url.includes('/auth/refresh/')) {
-        localStorage.clear();
-        window.location.href = '/login';
+        setAuthToken(null);
         return Promise.reject(error);
       }
 
@@ -66,27 +72,23 @@ API.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
-        }
-
-        // ✅ FIX 2: Call actual SimpleJWT refresh endpoint '/auth/refresh/'
-        const response = await axios.post(`${API_BASE_URL}/auth/refresh/`, {
-          refresh: refreshToken,
-        });
+        // Send request to refresh endpoint; cookie is sent automatically by browser
+        const response = await axios.post(
+          `${API_BASE_URL}/auth/refresh/`,
+          {},
+          { withCredentials: true }
+        );
 
         const newAccessToken = response.data.access;
-        localStorage.setItem('accessToken', newAccessToken);
+        setAuthToken(newAccessToken);
 
-        API.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
         originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
 
         processQueue(null, newAccessToken);
         return API(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        localStorage.clear();
+        setAuthToken(null);
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
