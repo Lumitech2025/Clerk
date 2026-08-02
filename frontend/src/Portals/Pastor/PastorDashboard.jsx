@@ -148,10 +148,10 @@ const PastorDashboard = () => {
 
   // Quick Navigation Shortcuts
   const quickAccessModules = [
-    { id: 1, title: 'Membership Registry', date: 'Active Members Directory', targetTab: 'membership' },
-    { id: 2, title: 'Board & Business Minutes', date: 'Meeting Records', targetTab: 'meetings' },
-    { id: 3, title: 'Weddings', date: 'Upcoming & Past Registrations', targetTab: 'weddings' },
-    { id: 4, title: 'Departments & Reports', date: 'Departmental Activity & Filings', targetTab: 'departments' }
+    { id: 1, title: 'Membership', targetTab: 'membership' },
+    { id: 2, title: 'Board & Business Minutes', targetTab: 'meetings' },
+    { id: 3, title: 'Weddings', targetTab: 'weddings' },
+    { id: 4, title: 'Departments & Reports', targetTab: 'departments' }
   ];
 
   return (
@@ -295,7 +295,6 @@ const PastorDashboard = () => {
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2 shrink-0">
                     <div>
                       <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Membership Analytics</h2>
-                      <p className="text-xs font-medium text-slate-500 mt-0.5">Baptisms and Transfers</p>
                     </div>
 
                     {/* Interactive Filter Toggle */}
@@ -347,9 +346,9 @@ const PastorDashboard = () => {
 
               </div>
 
-              {/* TIER 3: RECORDS AND ARCHIVES MODULES */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs shrink-0">
-                <div className="mb-3">
+              {/* TIER 3: RECORDS AND ARCHIVES MODULES (TALLER HEIGHT) */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs shrink-0">
+                <div className="mb-3.5">
                   <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">Records and Archives</h2>
                 </div>
 
@@ -358,10 +357,10 @@ const PastorDashboard = () => {
                     <div 
                       key={item.id} 
                       onClick={() => setActiveTab(item.targetTab)}
-                      className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-emerald-500 hover:bg-emerald-50/20 transition cursor-pointer group"
+                      className="bg-slate-50 p-5 min-h-[85px] rounded-xl border border-slate-200 flex items-center justify-between hover:border-emerald-500 hover:bg-emerald-50/20 transition cursor-pointer group"
                     >
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-500 group-hover:text-white transition">
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 group-hover:bg-emerald-500 group-hover:text-white transition">
                           <FaFileAlt className="w-5 h-5" />
                         </div>
                         <div className="min-w-0">
@@ -375,7 +374,7 @@ const PastorDashboard = () => {
                           e.stopPropagation();
                           setActiveTab(item.targetTab);
                         }}
-                        className="p-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl transition shadow-xs cursor-pointer shrink-0 ml-2"
+                        className="p-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl transition shadow-xs cursor-pointer shrink-0 ml-2"
                       >
                         <FaArrowRight className="w-3.5 h-3.5" />
                       </button>
@@ -492,16 +491,16 @@ const PastorDashboard = () => {
   );
 };
 
-// Enlarged KPI Stat Card Component
+// Enlarged KPI Stat Card Component (Taller Height & Darker/Bolder Titles)
 const StatCard = ({ title, value, icon: Icon, valueColor, iconBg }) => {
   return (
-    <div className="bg-white px-6 py-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+    <div className="bg-white px-6 py-6 min-h-[130px] rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
       <div>
-        <p className="text-xs font-extrabold uppercase text-slate-400 tracking-wider">{title}</p>
-        <h3 className={`text-3xl lg:text-4xl font-black ${valueColor} mt-1 tracking-tight`}>{value}</h3>
+        <p className="text-xs font-black uppercase text-slate-700 tracking-wider">{title}</p>
+        <h3 className={`text-3xl lg:text-4xl font-black ${valueColor} mt-1.5 tracking-tight`}>{value}</h3>
       </div>
-      <div className={`p-3.5 rounded-2xl ${iconBg}`}>
-        <Icon className="w-6 h-6" />
+      <div className={`p-4 rounded-2xl ${iconBg}`}>
+        <Icon className="w-6 h-6 lg:w-7 lg:h-7" />
       </div>
     </div>
   );

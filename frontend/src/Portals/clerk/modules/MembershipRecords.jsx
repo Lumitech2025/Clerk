@@ -721,9 +721,9 @@ export default function MembershipRecords() {
                       <th className="border border-slate-300 py-3.5 px-4">Member Name</th>
                       <th className="border border-slate-300 py-3.5 px-4">Status Progress</th>
                       {transferDirection === 'incoming' ? (
-                        <th className="border border-slate-300 py-3.5 px-4">Incoming Church (Origin)</th>
+                        <th className="border border-slate-300 py-3.5 px-4">Incoming Church</th>
                       ) : (
-                        <th className="border border-slate-300 py-3.5 px-4">Outgoing Church (Destination)</th>
+                        <th className="border border-slate-300 py-3.5 px-4">Outgoing Church</th>
                       )}
                       <th className="border border-slate-300 py-3.5 px-4">CBM Min No.</th>
                       <th className="border border-slate-300 py-3.5 px-4">Board Approval Date</th>
@@ -1151,11 +1151,11 @@ export default function MembershipRecords() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-slate-700 font-medium mb-1">Incoming Church (Origin)</label>
+                      <label className="block text-slate-700 font-medium mb-1">Incoming Church</label>
                       <input type="text" name="originChurch" placeholder="Origin SDA Church" value={memberForm.originChurch} onChange={handleInputChange} className="w-full px-3.5 py-2.5 bg-white border border-amber-200 rounded-xl" />
                     </div>
                     <div>
-                      <label className="block text-slate-700 font-medium mb-1">Outgoing Church (Destination)</label>
+                      <label className="block text-slate-700 font-medium mb-1">Outgoing Church</label>
                       <input type="text" name="targetChurch" placeholder="Target SDA Church" value={memberForm.targetChurch} onChange={handleInputChange} className="w-full px-3.5 py-2.5 bg-white border border-amber-200 rounded-xl" />
                     </div>
                     <div>
@@ -1254,11 +1254,11 @@ export default function MembershipRecords() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-medium mb-1">Incoming Church (Origin)</label>
+                  <label className="block text-slate-700 font-medium mb-1">Incoming Church</label>
                   <input type="text" value={selectedTransferRow.origin_church || ''} onChange={(e) => setSelectedTransferRow({...selectedTransferRow, origin_church: e.target.value})} className="w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl" />
                 </div>
                 <div>
-                  <label className="block text-slate-700 font-medium mb-1">Outgoing Church (Destination)</label>
+                  <label className="block text-slate-700 font-medium mb-1">Outgoing Church</label>
                   <input type="text" value={selectedTransferRow.target_church || ''} onChange={(e) => setSelectedTransferRow({...selectedTransferRow, target_church: e.target.value})} className="w-full px-3.5 py-2.5 bg-slate-50 border rounded-xl" />
                 </div>
               </div>

@@ -287,10 +287,7 @@ const HolyCommunion = () => {
           </select>
         </div>
 
-        <div className="flex items-center gap-2.5 text-sm font-semibold text-emerald-800 bg-emerald-50/80 px-4 py-2.5 rounded-lg border border-emerald-200/60 w-full sm:w-auto justify-center">
-          <BookmarkCheck size={18} className="text-emerald-600" />
-          <span>Quarterly Communion Registry</span>
-        </div>
+        
       </div>
 
       {/* COMMUNION RECORDS TABLE */}

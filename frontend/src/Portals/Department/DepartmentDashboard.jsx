@@ -211,8 +211,7 @@ const DepartmentDashboard = () => {
   const quickAccessModules = [
     { 
       id: 1, 
-      title: 'Departments & TORs', 
-      desc: 'Roles, leadership rosters & terms of reference', 
+      title: 'Departments', 
       targetTab: 'departments', 
       icon: FaBuilding,
       color: 'text-emerald-600 bg-emerald-500/10'
@@ -220,15 +219,13 @@ const DepartmentDashboard = () => {
     { 
       id: 2, 
       title: 'Events Calendar', 
-      desc: 'Church events & board approval statuses', 
       targetTab: 'events', 
       icon: FaCalendarAlt,
       color: 'text-blue-600 bg-blue-500/10'
     },
     { 
       id: 3, 
-      title: 'Departmental Meetings', 
-      desc: 'Tabled agendas, confirmed minutes & attendance logs', 
+      title: 'Departmental Meetings',
       targetTab: 'meetings', 
       icon: FaUsers,
       color: 'text-purple-600 bg-purple-500/10'
@@ -236,7 +233,6 @@ const DepartmentDashboard = () => {
     { 
       id: 4, 
       title: 'Reports & Budgets', 
-      desc: 'Quarterly departmental submissions & financial requests', 
       targetTab: 'reports', 
       icon: FaFileAlt,
       color: 'text-amber-600 bg-amber-500/10'
@@ -279,7 +275,7 @@ const DepartmentDashboard = () => {
                   value={loading ? '...' : kpiStats.totalDepartments} 
                   icon={FaBuilding} 
                   valueColor="text-emerald-600"
-                  iconBg="bg-emerald-500/10 text-emerald-600"
+                  iconBg="bg-emerald-500/10 text-emerald-600"s
                 />
                 <StatCard 
                   title="Upcoming Events" 
@@ -311,8 +307,8 @@ const DepartmentDashboard = () => {
                 <div className="lg:col-span-2 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col h-full min-h-0">
                   <div className="flex items-center justify-between mb-3 shrink-0">
                     <div>
-                      <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Upcoming Church Events</h2>
-                      <p className="text-xs font-medium text-slate-500 mt-0.5">Schedules submitted for clerk & board review</p>
+                      <h2 className="text-lg font-extrabold text-slate-900 tracking-tight">Upcoming Events</h2>
+                      
                     </div>
                     <span className="text-xs font-black text-emerald-800 bg-emerald-100/80 border border-emerald-300/60 px-3 py-1 rounded-lg uppercase tracking-wider">
                       {eventsList.length} Scheduled
@@ -329,7 +325,7 @@ const DepartmentDashboard = () => {
                       <div className="h-full flex flex-col items-center justify-center text-center p-4">
                         <FaCalendarAlt className="w-9 h-9 text-slate-300 mb-2" />
                         <p className="text-sm font-bold text-slate-600">No scheduled activities</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Department leaders can submit new events.</p>
+                        
                       </div>
                     ) : (
                       eventsList.map((evt) => {
@@ -349,15 +345,7 @@ const DepartmentDashboard = () => {
                                 <span className="inline-block text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-500/15 px-2 py-0.5 rounded border border-emerald-500/30">
                                   {eventCategory}
                                 </span>
-                                {status === 'APPROVED' ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                    <FaCheckCircle className="w-2.5 h-2.5" /> Approved
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                                    <FaHourglassHalf className="w-2.5 h-2.5" /> Pending Board
-                                  </span>
-                                )}
+                                
                               </div>
                               <h4 className="text-sm font-extrabold text-slate-900 leading-snug truncate">{evt.title}</h4>
                               <div className="flex items-center gap-3 text-xs text-slate-500 font-medium truncate">
@@ -399,7 +387,7 @@ const DepartmentDashboard = () => {
                       <h2 className="text-lg font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
                         <FaChartLine className="text-emerald-600 w-5 h-5" /> Departmental Submissions & Activity
                       </h2>
-                      <p className="text-xs font-medium text-slate-500 mt-0.5">Annual tracking of events, logged minutes, and submitted reports (Jan - Dec)</p>
+                      
                     </div>
 
                     {/* Interactive Filter Toggle */}
@@ -451,11 +439,11 @@ const DepartmentDashboard = () => {
 
               </div>
 
-              {/* TIER 3: OPERATIONS DIRECTORY SHORTCUTS */}
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs shrink-0">
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">Church Clerk Operations Directory</h2>
-                  <span className="text-xs font-bold text-slate-400">Quick Access to Key Desk Modules</span>
+              {/* TIER 3: OPERATIONS DIRECTORY SHORTCUTS (TALLER HEIGHT) */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs shrink-0">
+                <div className="mb-3.5 flex items-center justify-between">
+                  <h2 className="text-xs font-black text-slate-900 uppercase tracking-wider">Departments Directory</h2>
+                  
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -465,10 +453,10 @@ const DepartmentDashboard = () => {
                       <div 
                         key={item.id} 
                         onClick={() => setActiveTab(item.targetTab)}
-                        className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between hover:border-emerald-500 hover:bg-emerald-50/20 transition cursor-pointer group"
+                        className="bg-slate-50 p-5 min-h-[85px] rounded-xl border border-slate-200 flex items-center justify-between hover:border-emerald-500 hover:bg-emerald-50/20 transition cursor-pointer group"
                       >
-                        <div className="flex items-center gap-3.5 min-w-0">
-                          <div className={`w-11 h-11 rounded-xl ${item.color} flex items-center justify-center shrink-0 group-hover:bg-emerald-500 group-hover:text-white transition`}>
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className={`w-12 h-12 rounded-xl ${item.color} flex items-center justify-center shrink-0 group-hover:bg-emerald-500 group-hover:text-white transition`}>
                             <IconComponent className="w-5 h-5" />
                           </div>
                           <div className="min-w-0">
@@ -482,7 +470,7 @@ const DepartmentDashboard = () => {
                             e.stopPropagation();
                             setActiveTab(item.targetTab);
                           }}
-                          className="p-2.5 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl transition shadow-xs cursor-pointer shrink-0 ml-2"
+                          className="p-3 bg-emerald-500 hover:bg-emerald-600 text-slate-950 rounded-xl transition shadow-xs cursor-pointer shrink-0 ml-2"
                         >
                           <FaArrowRight className="w-3.5 h-3.5" />
                         </button>
@@ -498,22 +486,22 @@ const DepartmentDashboard = () => {
           {/* WORKSPACE TAB MODULE ROUTING */}
           {activeTab === 'departments' ? (
             <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-5">
-              <DepartmentPortal />
+              <DepartmentPortal onRecordUpdated={fetchDepartmentAnalytics} />
             </div>
           ) : 
           activeTab === 'meetings' ? (
             <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-5">
-              <Departmentalmeetings />
+              <Departmentalmeetings onRecordUpdated={fetchDepartmentAnalytics} />
             </div>
           ) : 
           activeTab === 'events' ? (
             <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-5">
-              <DepartmentEventsWorkspace />
+              <DepartmentEventsWorkspace onRecordUpdated={fetchDepartmentAnalytics} />
             </div>
           ) : 
           activeTab === 'reports' ? (
             <div className="flex-1 min-h-0 overflow-y-auto rounded-2xl bg-white border border-slate-200 shadow-xs p-5">
-              <Reports />
+              <Reports onRecordUpdated={fetchDepartmentAnalytics} />
             </div>
           ) : 
           activeTab !== 'dashboard' && (
@@ -543,7 +531,7 @@ const DepartmentDashboard = () => {
               </div>
               <div>
                 <h3 className="font-extrabold text-slate-900 text-lg tracking-tight">Upload Department Record</h3>
-                <p className="text-xs text-slate-500 font-medium">Submit minutes, proposals, or activity reports</p>
+                
               </div>
             </div>
 
@@ -597,16 +585,16 @@ const DepartmentDashboard = () => {
   );
 };
 
-// KPI Stat Card Component
+// Enlarged KPI Stat Card Component (Taller Height & Darker/Bolder Title font)
 const StatCard = ({ title, value, icon: Icon, valueColor, iconBg }) => {
   return (
-    <div className="bg-white px-6 py-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
+    <div className="bg-white px-6 py-6 min-h-[130px] rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
       <div>
-        <p className="text-xs font-extrabold uppercase text-slate-400 tracking-wider">{title}</p>
-        <h3 className={`text-3xl lg:text-4xl font-black ${valueColor} mt-1 tracking-tight`}>{value}</h3>
+        <p className="text-xs font-black uppercase text-slate-700 tracking-wider">{title}</p>
+        <h3 className={`text-3xl lg:text-4xl font-black ${valueColor} mt-1.5 tracking-tight`}>{value}</h3>
       </div>
-      <div className={`p-3.5 rounded-2xl ${iconBg}`}>
-        <Icon className="w-6 h-6" />
+      <div className={`p-4 rounded-2xl ${iconBg}`}>
+        <Icon className="w-6 h-6 lg:w-7 lg:h-7" />
       </div>
     </div>
   );

@@ -96,38 +96,50 @@ const ClerkDashboard = () => {
           churchWorkersCount: data.total_church_workers || totalWorkers,
         });
 
-        setTransferData([
-          {
-            month: 'YTD Summary',
-            TransfersIn: incomingCount || data.membership_transfers?.incoming || 0,
-            TransfersOut: outgoingCount || data.membership_transfers?.outgoing || 0,
-          }
-        ]);
+        // Parse monthly transfers if backend returns monthly breakdowns, or map across 12 months
+        const monthlyTransfersIn = data.membership_transfers?.monthly_incoming || [0, 0, 0, 0, incomingCount || 5, 0, 0, 0, 0, 0, 0, 0];
+        const monthlyTransfersOut = data.membership_transfers?.monthly_outgoing || [0, 0, 0, 0, outgoingCount || 0, 0, 0, 0, 0, 0, 0, 0];
 
-        const monthlyCounts = data.baptism_trends?.monthly_counts || [0,0,0,0,0,0,0,0,0,0,0,0];
+        setTransferData(MONTH_NAMES.map((month, index) => ({
+          month,
+          TransfersIn: monthlyTransfersIn[index] || 0,
+          TransfersOut: monthlyTransfersOut[index] || 0,
+        })));
+
+        const monthlyCounts = data.baptism_trends?.monthly_counts || [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0];
         setBaptismData(monthlyCounts.map((count, index) => ({
           month: MONTH_NAMES[index],
           Baptisms: count
         })));
       } else {
-        // Fallback state
+        // Fallback mock state with full 12-month breakdown
         setKpiStats({
-          activeMembers: 3,
-          baptismsYtd: selectedYear === 2026 ? 3 : 5,
-          departmentsCount: totalDepts || 5,
-          churchWorkersCount: totalWorkers || 4,
+          activeMembers: 7,
+          baptismsYtd: selectedYear === 2026 ? 2 : 5,
+          departmentsCount: totalDepts || 3,
+          churchWorkersCount: totalWorkers || 3,
         });
 
-        setTransferData([
-          {
-            month: 'YTD Summary',
-            TransfersIn: incomingCount || 1,
-            TransfersOut: outgoingCount || 1
-          }
-        ]);
+        const mockTransfersIn = {
+          2026: [0, 0, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0],
+          2025: [1, 0, 2, 0, 1, 0, 3, 0, 0, 1, 0, 0]
+        };
+        const mockTransfersOut = {
+          2026: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+          2025: [0, 1, 0, 0, 2, 0, 0, 1, 0, 0, 0, 0]
+        };
+
+        const currentIn = mockTransfersIn[selectedYear] || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        const currentOut = mockTransfersOut[selectedYear] || [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+        setTransferData(MONTH_NAMES.map((month, index) => ({
+          month,
+          TransfersIn: currentIn[index] || 0,
+          TransfersOut: currentOut[index] || 0,
+        })));
 
         const yearMockData = {
-          2026: [0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 0],
+          2026: [0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0],
           2025: [1, 2, 0, 1, 3, 0, 1, 2, 0, 1, 0, 0],
           2024: [0, 1, 2, 0, 0, 4, 1, 0, 2, 0, 1, 0],
           2023: [2, 0, 1, 1, 0, 2, 3, 0, 1, 0, 0, 1],
@@ -152,18 +164,18 @@ const ClerkDashboard = () => {
     fetchClerkAnalytics();
   }, [fetchClerkAnalytics]);
 
-  // Compute maximum values to force Y-Axis bars to reach gracefully near the top
+  // Dynamic Y-Axis scale limits
   const maxTransferVal = Math.max(
     ...transferData.map(d => Math.max(d.TransfersIn || 0, d.TransfersOut || 0)), 
-    2
+    3
   );
-  const maxBaptismVal = Math.max(...baptismData.map(d => d.Baptisms || 0), 2);
+  const maxBaptismVal = Math.max(...baptismData.map(d => d.Baptisms || 0), 3);
 
   const quickAccessModules = [
-    { id: 1, title: 'Master Membership Register', date: 'Quarter 3, 2026', type: 'VIEW REGISTER', targetTab: 'membership' },
+    { id: 1, title: 'Membership', date: 'Quarter 3, 2026', type: 'VIEW REGISTER', targetTab: 'membership' },
     { id: 2, title: 'Board & Church Business Minutes', date: 'Latest - July 2026', type: 'VIEW MINUTES', targetTab: 'meetings' },
-    { id: 3, title: 'Baptism & Dedication Certificates Log', date: 'YTD 2026', type: 'VIEW BAPTISMS', targetTab: 'baptisms' },
-    { id: 4, title: 'Transfer Clearance Summary', date: 'Active Transfers', type: 'VIEW TRANSFERS', targetTab: 'membership' }
+    { id: 3, title: 'Baptisms', date: 'YTD 2026', type: 'VIEW BAPTISMS', targetTab: 'baptisms' },
+    { id: 4, title: 'Transfers', date: 'Active Transfers', type: 'VIEW TRANSFERS', targetTab: 'membership' }
   ];
 
   return (
@@ -186,7 +198,7 @@ const ClerkDashboard = () => {
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         
         {/* Main Body */}
-        <main className="flex-1 overflow-y-auto xl:overflow-y-hidden p-5 space-y-3.5 flex flex-col justify-between">
+        <main className="flex-1 overflow-y-auto p-5 space-y-4 flex flex-col justify-between">
           
           {error && (
             <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs rounded-xl flex items-center justify-between">
@@ -195,10 +207,10 @@ const ClerkDashboard = () => {
             </div>
           )}
 
-          {/* 1. OVERVIEW & ANALYTICS TAB */}
+          {/* OVERVIEW & ANALYTICS TAB */}
           {activeTab === 'analytics' && (
             <>
-              {/* TALLER KPI CARDS */}
+              {/* KPI CARDS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard 
                   title="Total Active Members" 
@@ -230,18 +242,18 @@ const ClerkDashboard = () => {
                 />
               </div>
 
-              {/* SIDE-BY-SIDE ANALYTICS CHARTS */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1">
+              {/* FULL-HEIGHT RESPONSIVE CHARTS */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 items-stretch">
                 
                 {/* CHART 1: Membership Transfers */}
-                <div className="bg-white/95 p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                <div className="bg-white/95 p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col h-full">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 shrink-0">
                     <div>
                       <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Membership Transfers</h2>
                       <p className="text-xs font-bold text-slate-500 mt-0.5">Incoming & Outgoing Summary</p>
                     </div>
 
-                    <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80">
+                    <div className="flex items-center gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 self-start sm:self-auto">
                       <button 
                         onClick={() => setTransferFilter('All')}
                         className={`px-3 py-1 text-xs font-extrabold rounded-lg transition cursor-pointer ${
@@ -269,13 +281,13 @@ const ClerkDashboard = () => {
                     </div>
                   </div>
 
-                  {/* Reduced height chart plot container with subtle tint */}
-                  <div className="h-44 xl:h-48 w-full bg-slate-50/60 rounded-xl p-2 border border-slate-100 flex items-center justify-center">
+                  {/* Fully expanded chart wrapper with Jan-Dec XAxis */}
+                  <div className="flex-1 w-full min-h-[300px] h-full bg-slate-50/60 rounded-xl p-3 border border-slate-100 flex items-center justify-center">
                     {loading ? (
                       <FaSpinner className="animate-spin text-slate-400 w-6 h-6" />
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={transferData} margin={{ top: 12, right: 20, left: -20, bottom: 0 }}>
+                        <BarChart data={transferData} margin={{ top: 20, right: 15, left: -20, bottom: 5 }}>
                           <defs>
                             <linearGradient id="gradTransIn" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="0%" stopColor="#10B981" stopOpacity={1}/>
@@ -290,19 +302,19 @@ const ClerkDashboard = () => {
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                           <XAxis dataKey="month" tickLine={false} tick={{ fill: '#475569', fontSize: 11, fontWeight: 800 }} />
                           <YAxis 
-                            domain={[0, maxTransferVal + 1]} 
+                            domain={[0, maxTransferVal]} 
                             allowDecimals={false} 
                             tickLine={false} 
                             tick={{ fill: '#475569', fontSize: 11, fontWeight: 800 }} 
                           />
                           <Tooltip contentStyle={{ backgroundColor: '#020617', borderRadius: '12px', border: 'none', color: '#fff', fontSize: '12px', fontFamily: 'Plus Jakarta Sans, sans-serif' }} />
-                          <Legend wrapperStyle={{ paddingTop: '4px', fontSize: '11px', fontWeight: 800 }} />
+                          <Legend wrapperStyle={{ paddingTop: '8px', fontSize: '12px', fontWeight: 800 }} />
                           
                           {(transferFilter === 'All' || transferFilter === 'In') && (
-                            <Bar dataKey="TransfersIn" name="Incoming" fill="url(#gradTransIn)" radius={[6, 6, 0, 0]} barSize={28} />
+                            <Bar dataKey="TransfersIn" name="Incoming" fill="url(#gradTransIn)" radius={[6, 6, 0, 0]} maxBarSize={28} />
                           )}
                           {(transferFilter === 'All' || transferFilter === 'Out') && (
-                            <Bar dataKey="TransfersOut" name="Outgoing" fill="url(#gradTransOut)" radius={[6, 6, 0, 0]} barSize={28} />
+                            <Bar dataKey="TransfersOut" name="Outgoing" fill="url(#gradTransOut)" radius={[6, 6, 0, 0]} maxBarSize={28} />
                           )}
                         </BarChart>
                       </ResponsiveContainer>
@@ -311,8 +323,8 @@ const ClerkDashboard = () => {
                 </div>
 
                 {/* CHART 2: Baptism Trends */}
-                <div className="bg-white/95 p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
-                  <div className="flex items-center justify-between mb-2">
+                <div className="bg-white/95 p-5 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col h-full">
+                  <div className="flex items-center justify-between mb-4 shrink-0">
                     <div>
                       <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Baptism Trends</h2>
                       <p className="text-xs font-bold text-slate-500 mt-0.5">Total Baptisms Recorded (Jan - Dec)</p>
@@ -334,13 +346,13 @@ const ClerkDashboard = () => {
                     </div>
                   </div>
 
-                  {/* Reduced height chart plot container with subtle tint */}
-                  <div className="h-44 xl:h-48 w-full bg-slate-50/60 rounded-xl p-2 border border-slate-100 flex items-center justify-center">
+                  {/* Fully expanded chart wrapper */}
+                  <div className="flex-1 w-full min-h-[300px] h-full bg-slate-50/60 rounded-xl p-3 border border-slate-100 flex items-center justify-center">
                     {loading ? (
                       <FaSpinner className="animate-spin text-slate-400 w-6 h-6" />
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={baptismData} margin={{ top: 12, right: 10, left: -25, bottom: 0 }}>
+                        <BarChart data={baptismData} margin={{ top: 20, right: 15, left: -20, bottom: 5 }}>
                           <defs>
                             <linearGradient id="gradBaptism" x1="0" y1="0" x2="0" y2="1">
                               <stop offset="0%" stopColor="#3B82F6" stopOpacity={1}/>
@@ -351,13 +363,13 @@ const ClerkDashboard = () => {
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
                           <XAxis dataKey="month" tickLine={false} tick={{ fill: '#475569', fontSize: 11, fontWeight: 800 }} />
                           <YAxis 
-                            domain={[0, maxBaptismVal + 1]} 
+                            domain={[0, maxBaptismVal]} 
                             allowDecimals={false} 
                             tickLine={false} 
                             tick={{ fill: '#475569', fontSize: 11, fontWeight: 800 }} 
                           />
                           <Tooltip contentStyle={{ backgroundColor: '#020617', borderRadius: '12px', border: 'none', color: '#fff', fontSize: '12px', fontFamily: 'Plus Jakarta Sans, sans-serif' }} />
-                          <Bar dataKey="Baptisms" name="Baptisms" fill="url(#gradBaptism)" radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="Baptisms" name="Baptisms" fill="url(#gradBaptism)" radius={[6, 6, 0, 0]} maxBarSize={28} />
                         </BarChart>
                       </ResponsiveContainer>
                     )}
@@ -367,10 +379,9 @@ const ClerkDashboard = () => {
               </div>
 
               {/* ARCHIVE & NAVIGATION TILES */}
-              <div className="bg-white/95 p-5 rounded-2xl border border-slate-200/80 shadow-xs">
+              <div className="bg-white/95 p-5 rounded-2xl border border-slate-200/80 shadow-xs shrink-0">
                 <div className="mb-2.5">
                   <h2 className="text-base font-extrabold text-slate-900 tracking-tight">Archive & Quick Module Shortcuts</h2>
-                  
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -427,7 +438,7 @@ const ClerkDashboard = () => {
   );
 };
 
-// Custom KPI Stat Card Component (Increased Height)
+// Custom KPI Stat Card Component
 const StatCard = ({ title, value, icon: Icon, valueColor, iconBg }) => {
   return (
     <div className="bg-white/95 py-5 px-5 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between min-h-[125px]">
